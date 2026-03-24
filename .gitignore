@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Editor-specific (prefer Android Studio for Gradle / JDK)
+/.vscode/
+
+# Gradle wrapper downloads when using distributionBase=PROJECT
+/gradle/wrapper/dists/
