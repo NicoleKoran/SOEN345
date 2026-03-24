@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AppCalculator"
+rootProject.name = "BookingApp"
 include(":app")
  

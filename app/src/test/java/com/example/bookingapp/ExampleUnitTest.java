@@ -1,4 +1,4 @@
-package com.example.appcalculator;
+package com.example.bookingapp;
 
 import org.junit.Test;
 

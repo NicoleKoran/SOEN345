@@ -1,34 +1,71 @@
-package com.example.appcalculator;
+package com.example.bookingapp;
 
 import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import java.math.BigDecimal;
 
+import com.example.bookingapp.R;
+
+import java.math.BigDecimal;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 
 public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_main);
+        setContentView(com.example.bookingapp.R.layout.activity_main);
 
         //Get the elements
         EditText input1 = findViewById(R.id.input1);
         EditText input2 = findViewById(R.id.input2);
         TextView resultField = findViewById(R.id.resultField);
         Button calculateBtn = findViewById(R.id.calculateBtn);
+        EditText databaseinput = findViewById(R.id.databaseinput);
+        Button databasebutton = findViewById(R.id.databasebutton);
+
+        //PART WITH THE DB
+
+
+        DatabaseReference dbRef = FirebaseDatabase.getInstance().getReference("entries");
+
+        databasebutton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String value = databaseinput.getText().toString().trim();
+
+                if (value.isEmpty()) {
+                    databaseinput.setError("Field can't be empty");
+                    return;
+                }
+
+                // Creates a unique key under "entries" and sets the value
+                dbRef.push().setValue(value)
+                        .addOnSuccessListener(unused -> {
+                            databaseinput.setText(""); // Clear field on success
+                        })
+                        .addOnFailureListener(e -> {
+                            databaseinput.setError("Failed: " + e.getMessage());
+                        });
+            }
+        });
+
+
+
+
+        //CODE FROM THE LAB TEMPLATE, REMOVE THE STUFF BELOW
+
 
         //set trigger for the button onClick
         calculateBtn.setOnClickListener(new View.OnClickListener(){
