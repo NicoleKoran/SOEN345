@@ -11,8 +11,6 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 
-import com.example.bookingapp.R;
-
 import java.math.BigDecimal;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
@@ -25,7 +23,7 @@ public class MainActivity extends AppCompatActivity {
 
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
-        setContentView(com.example.bookingapp.R.layout.activity_main);
+        setContentView(R.layout.activity_main);
 
         //Get the elements
         EditText input1 = findViewById(R.id.input1);
