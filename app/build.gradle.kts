@@ -1,14 +1,18 @@
 plugins {
     alias(libs.plugins.android.application)
-    id("jacoco")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.example.appcalculator"
-    compileSdk = 35 // Using a standard stable version if 36 is too new/beta
+    namespace = "com.example.bookingapp"
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
 
     defaultConfig {
-        applicationId = "com.example.appcalculator"
+        applicationId = "com.example.bookingapp"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -37,10 +41,13 @@ android {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:34.10.0"))
+    implementation("com.google.firebase:firebase-analytics")
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation(libs.firebase.database)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

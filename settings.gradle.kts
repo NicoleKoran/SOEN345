@@ -21,6 +21,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "SOEN345_Project"
+
+rootProject.name = "BookingApp"
 include(":app")
  
