@@ -65,11 +65,11 @@ jobs:
         with:
           api-level: ${{ matrix.api-level }}
           target: default
-          arch: x86
+          arch: x86_64
           profile: Pixel 2
           emulator-boot-timeout: 900
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest --stacktrace --info
+          script: ./gradlew connectedDebugAndroidTest createDebugCoverageReport --stacktrace --info
 
       - name: Generate JaCoCo Report
         if: ${{ !cancelled() }}
