@@ -64,10 +64,11 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
         SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault());
         holder.date.setText("🗓 " + sdf.format(event.getDate()));
 
-        Event.EventCategory category = event.getCategory();
+        Event.EventCategory category = event.getCategoryEnum();
         String cat = category != null ? category.name().toUpperCase() : "EVENT";
         int color = getCategoryColor(category != null ? category.name() : null);
 
+        holder.categoryBadge.setText(cat);
         holder.categoryBadge.getBackground().setTint(color);
         holder.categoryStripe.setBackgroundColor(color);
 
@@ -83,8 +84,8 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
         switch (category.toLowerCase()) {
             case "concert": return Color.parseColor("#6A1B9A");
             case "movie":   return Color.parseColor("#1565C0");
-            case "sport": return Color.parseColor("#2E7D32");
-            case "travel":  return Color.parseColor("#E65100");
+            case "sport": return Color.parseColor("#E65100");
+            case "travel":  return Color.parseColor("#2E7D32");
             default:        return Color.parseColor("#3949AB");
         }
     }

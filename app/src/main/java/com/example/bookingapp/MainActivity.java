@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
     Date selectedDate = null;
     String selectedLocation = null;
 
-    final String[] CATEGORIES = {"All", "Concert", "Movie", "Sports", "Travel"};
+    final String[] CATEGORIES = {"All", "concert", "movie", "sport", "travel"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -182,12 +182,12 @@ public class MainActivity extends AppCompatActivity {
             if (!query.isEmpty()) {
                 boolean matchesSearch = (e.getTitle() != null && e.getTitle().toLowerCase().contains(query))
                         || (e.getLocation() != null && e.getLocation().toLowerCase().contains(query))
-                        || (e.getCategory() != null && e.getCategory().name().toLowerCase().contains(query));
+                        || (e.getCategory() != null && e.getCategory().toLowerCase().contains(query));
                 if (!matchesSearch) continue;
             }
             // Category filter
             if (selectedCategory != null && e.getCategory() != null &&
-                    !selectedCategory.equalsIgnoreCase(e.getCategory().name())) continue;
+                    !selectedCategory.equalsIgnoreCase(e.getCategory())) continue;
             if (selectedDate != null && e.getDate() != null) {
                 Calendar selCal = Calendar.getInstance(); selCal.setTime(selectedDate);
                 Calendar evCal = Calendar.getInstance(); evCal.setTime(e.getDate());
