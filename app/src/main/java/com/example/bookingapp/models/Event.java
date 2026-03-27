@@ -13,6 +13,7 @@ public class Event {
     private String status;
     private int totalSeats;
     private int availableSeats;
+    private int price;
 
     public enum EventCategory {
         movie,
@@ -33,7 +34,7 @@ public class Event {
     // parameterized constructor
     public Event(String eventId, String title, Date date, String location,
                  String description, EventCategory category,
-                 int totalSeats, int availableSeats, EventStatus status) {
+                 int totalSeats, int availableSeats, EventStatus status, int price) {
 
         this.eventId = eventId;
         this.title = title;
@@ -44,6 +45,7 @@ public class Event {
         this.totalSeats = totalSeats;
         this.availableSeats = availableSeats;
         this.status = status.name(); // convert enum → String
+        this.price = price;
     }
 
     // eventId
@@ -92,9 +94,14 @@ public class Event {
     }
 
     // category (returns enum)
-    @Exclude // Added this
+    @Exclude
     public EventCategory getCategory() {
-        return EventCategory.valueOf(category);
+        if (category == null) return null;
+        try {
+            return EventCategory.valueOf(category);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     // category (accepts enum)
@@ -142,4 +149,14 @@ public class Event {
     public void setAvailableSeats(int availableSeats) {
         this.availableSeats = availableSeats;
     }
+
+    public int getPrice(){
+        return price;
+    }
+
+    public void setPrice(int price){
+        this.price = price;
+    }
+    public String getCategoryString() { return category; }
+    public String getStatusString() { return status; }
 }

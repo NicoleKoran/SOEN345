@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="3dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <!-- Category color stripe -->
+        <View
+            android:id="@+id/categoryStripe"
+            android:layout_width="5dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="12dp"
+            android:background="#3949AB"
+            android:minHeight="60dp"/>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/categoryBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:textSize="10sp"
+                android:textColor="#FFFFFF"
+                android:background="@drawable/badge_background"
+                android:layout_marginBottom="4dp"
+                android:text="CONCERT"/>
+
+            <TextView
+                android:id="@+id/titleText"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#1A1A2E"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:id="@+id/locationText"
+                android:textSize="13sp"
+                android:textColor="#555555"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:drawablePadding="4dp"
+                android:layout_marginTop="4dp"/>
+
+            <TextView
+                android:id="@+id/dateText"
+                android:textSize="12sp"
+                android:textColor="#3949AB"
+                android:textStyle="bold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+
+        <!-- Price / Book button -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/priceText"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#2E7D32"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:text="$25"/>
+
+            <Button
+                android:id="@+id/bookButton"
+                android:text="Book"
+                android:textSize="12sp"
+                android:layout_width="70dp"
+                android:layout_height="34dp"
+                android:backgroundTint="#1A1A2E"
+                android:textColor="#FFFFFF"/>
+        </LinearLayout>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
