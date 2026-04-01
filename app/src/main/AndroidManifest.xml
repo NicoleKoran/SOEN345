@@ -13,7 +13,7 @@
         android:theme="@style/Theme.BookingApp">
 
         <activity
-            android:name=".LoginActivity"
+            android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -21,11 +21,10 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".LoginActivity" android:exported="false"/>
         <activity android:name=".RegisterEmailActivity" />
         <activity android:name=".RegisterPhoneActivity" />
         <activity android:name=".HomeActivity" />
-        <activity android:name=".MainActivity" />
-
     </application>
 
 </manifest>

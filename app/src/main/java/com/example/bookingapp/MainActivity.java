@@ -1,6 +1,7 @@
 package com.example.bookingapp;
 
 import android.app.DatePickerDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
@@ -14,6 +15,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bookingapp.adapters.EventAdapter;
 import com.example.bookingapp.models.Event;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -39,6 +42,16 @@ public class MainActivity extends AppCompatActivity {
     final String[] CATEGORIES = {"All", "concert", "movie", "sport", "travel"};
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+        }
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
 
 
@@ -52,6 +65,14 @@ public class MainActivity extends AppCompatActivity {
         btnLocationFilter = findViewById(R.id.btnLocationFilter);
         btnClearFilters = findViewById(R.id.btnClearFilters);
         resultsCount = findViewById(R.id.resultsCount);
+
+        Button logoutBtn = findViewById(R.id.logoutBtn);
+        logoutBtn.setOnClickListener(v -> {
+            FirebaseAuth.getInstance().signOut();
+            Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+        });
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new EventAdapter(filteredEvents, event -> {

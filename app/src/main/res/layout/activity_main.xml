@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="#F5F5F5">
-
     <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -15,14 +14,31 @@
         android:padding="16dp"
         android:orientation="vertical">
 
-        <TextView
-            android:text="Discover Events"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:text="Discover Events"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"/>
+
+            <Button
+                android:id="@+id/logoutBtn"
+                android:text="Logout"
+                android:textSize="12sp"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:backgroundTint="#3127b3"
+                android:textColor="#FFFFFF"/>
+        </LinearLayout>
 
         <!-- Search Bar -->
         <EditText
