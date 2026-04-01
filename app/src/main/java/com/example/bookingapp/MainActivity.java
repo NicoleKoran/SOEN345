@@ -1,356 +1,243 @@
 package com.example.bookingapp;
 
 import android.app.DatePickerDialog;
-import android.app.TimePickerDialog;
+import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.Spinner;
-import android.widget.TextView;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.widget.*;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.Calendar;
-import java.util.List;
+import com.example.bookingapp.adapters.EventAdapter;
+import com.example.bookingapp.models.Event;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
-    private EventRepository eventRepository;
-    private EditText eventIdInput;
-    private EditText titleInput;
-    private EditText descriptionInput;
-    private EditText locationInput;
-    private EditText dateInput;
-    private EditText totalSeatsInput;
-    private EditText availableSeatsInput;
-    private Spinner categorySpinner;
-    private Spinner statusSpinner;
-    private TextView feedbackText;
-    private TextView reservationsText;
+
+    RecyclerView recyclerView;
+    EventAdapter adapter;
+    List<Event> allEvents = new ArrayList<>();
+    List<Event> filteredEvents = new ArrayList<>();
+    FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+    EditText searchInput;
+    LinearLayout filterChipsContainer;
+    Button btnDateFilter, btnLocationFilter, btnClearFilters;
+    TextView resultsCount;
+
+    String selectedCategory = null;
+    Date selectedDate = null;
+    String selectedLocation = null;
+
+    final String[] CATEGORIES = {"All", "concert", "movie", "sport", "travel"};
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        eventRepository = new EventRepository();
-        bindViews();
-        configureSpinners();
-        configureDateInput();
-        configureButtons();
-    }
+        recyclerView = findViewById(R.id.eventsRecyclerView);
+        searchInput = findViewById(R.id.searchInput);
+        filterChipsContainer = findViewById(R.id.filterChipsContainer);
+        btnDateFilter = findViewById(R.id.btnDateFilter);
+        btnLocationFilter = findViewById(R.id.btnLocationFilter);
+        btnClearFilters = findViewById(R.id.btnClearFilters);
+        resultsCount = findViewById(R.id.resultsCount);
 
-    private void bindViews() {
-        eventIdInput = findViewById(R.id.eventIdInput);
-        titleInput = findViewById(R.id.titleInput);
-        descriptionInput = findViewById(R.id.descriptionInput);
-        locationInput = findViewById(R.id.locationInput);
-        dateInput = findViewById(R.id.dateInput);
-        totalSeatsInput = findViewById(R.id.totalSeatsInput);
-        availableSeatsInput = findViewById(R.id.availableSeatsInput);
-        categorySpinner = findViewById(R.id.categorySpinner);
-        statusSpinner = findViewById(R.id.statusSpinner);
-        feedbackText = findViewById(R.id.feedbackText);
-        reservationsText = findViewById(R.id.reservationsText);
-    }
-
-    private void configureSpinners() {
-        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                EventCategory.displayValues()
-        );
-        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        categorySpinner.setAdapter(categoryAdapter);
-
-        ArrayAdapter<String> statusAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                EventStatus.displayValues()
-        );
-        statusAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        statusSpinner.setAdapter(statusAdapter);
-    }
-
-    private void configureDateInput() {
-        dateInput.setKeyListener(null);
-        dateInput.setOnClickListener(view -> openDateTimePicker());
-        dateInput.setOnFocusChangeListener((view, hasFocus) -> {
-            if (hasFocus) {
-                openDateTimePicker();
-            }
+        Button logoutBtn = findViewById(R.id.logoutBtn);
+        logoutBtn.setOnClickListener(v -> {
+            FirebaseAuth.getInstance().signOut();
+            Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
         });
-    }
 
-    private void configureButtons() {
-        Button addEventButton = findViewById(R.id.addEventButton);
-        Button loadEventButton = findViewById(R.id.loadEventButton);
-        Button updateEventButton = findViewById(R.id.updateEventButton);
-        Button cancelEventButton = findViewById(R.id.cancelEventButton);
-        Button viewReservationsButton = findViewById(R.id.viewReservationsButton);
-        Button clearFormButton = findViewById(R.id.clearFormButton);
-
-        addEventButton.setOnClickListener(view -> addEvent());
-        loadEventButton.setOnClickListener(view -> loadEvent());
-        updateEventButton.setOnClickListener(view -> updateEvent());
-        cancelEventButton.setOnClickListener(view -> cancelEvent());
-        viewReservationsButton.setOnClickListener(view -> viewReservations());
-        clearFormButton.setOnClickListener(view -> clearForm());
-    }
-
-    private void addEvent() {
-        Event event;
-        try {
-            event = buildEvent(false);
-        } catch (IllegalArgumentException exception) {
-            showError(exception.getMessage());
-            return;
-        }
-
-        eventRepository.addEvent(event, new EventRepository.MessageCallback() {
-            @Override
-            public void onSuccess(String message) {
-                eventIdInput.setText(event.getEventId());
-                showSuccess(message);
-            }
-
-            @Override
-            public void onError(String message) {
-                showError(message);
-            }
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new EventAdapter(filteredEvents, event -> {
+            Toast.makeText(this, "Booking: " + event.getTitle(), Toast.LENGTH_SHORT).show();
         });
+        recyclerView.setAdapter(adapter);
+
+        setupCategoryChips();
+        setupSearch();
+        setupDateFilter();
+        setupLocationFilter();
+        setupClearFilters();
+        loadEvents();
     }
 
-    private void loadEvent() {
-        String eventId = readEventId();
-        if (eventId.isEmpty()) {
-            showError("Enter an event ID before loading an event.");
-            return;
-        }
+    private void setupCategoryChips() {
+        for (String cat : CATEGORIES) {
+            Button chip = new Button(this);
+            chip.setText(cat);
+            chip.setTextSize(12f);
+            chip.setPadding(24, 4, 24, 4);
 
-        eventRepository.getEvent(eventId, new EventRepository.EventCallback() {
-            @Override
-            public void onSuccess(Event event) {
-                populateForm(event);
-                showSuccess("Event loaded.");
-            }
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.setMargins(4, 0, 4, 0);
+            chip.setLayoutParams(params);
 
-            @Override
-            public void onError(String message) {
-                showError(message);
-            }
-        });
-    }
-
-    private void updateEvent() {
-        Event event;
-        try {
-            event = buildEvent(true);
-        } catch (IllegalArgumentException exception) {
-            showError(exception.getMessage());
-            return;
-        }
-
-        eventRepository.updateEvent(event, new EventRepository.MessageCallback() {
-            @Override
-            public void onSuccess(String message) {
-                showSuccess(message);
-            }
-
-            @Override
-            public void onError(String message) {
-                showError(message);
-            }
-        });
-    }
-
-    private void cancelEvent() {
-        String eventId = readEventId();
-        if (eventId.isEmpty()) {
-            showError("Enter an event ID before cancelling an event.");
-            return;
-        }
-
-        eventRepository.cancelEvent(eventId, new EventRepository.MessageCallback() {
-            @Override
-            public void onSuccess(String message) {
-                setSpinnerValue(statusSpinner, EventStatus.CANCELLED.toFirestoreValue());
-                showSuccess(message);
-            }
-
-            @Override
-            public void onError(String message) {
-                showError(message);
-            }
-        });
-    }
-
-    private void viewReservations() {
-        String eventId = readEventId();
-        if (eventId.isEmpty()) {
-            showError("Enter an event ID before viewing reservations.");
-            return;
-        }
-
-        eventRepository.getReservationsForEvent(eventId, new EventRepository.ReservationsCallback() {
-            @Override
-            public void onSuccess(List<ReservationSummary> reservations) {
-                if (reservations.isEmpty()) {
-                    reservationsText.setText(getString(R.string.no_reservations_found));
-                } else {
-                    reservationsText.setText(buildReservationDisplay(reservations));
+            updateChipStyle(chip, false);
+            chip.setOnClickListener(v -> {
+                selectedCategory = cat.equals("All") ? null : cat;
+                // Reset all chip styles
+                for (int i = 0; i < filterChipsContainer.getChildCount(); i++) {
+                    updateChipStyle((Button) filterChipsContainer.getChildAt(i), false);
                 }
-                showSuccess("Reservations loaded.");
-            }
+                updateChipStyle(chip, true);
+                applyFilters();
+            });
 
-            @Override
-            public void onError(String message) {
-                showError(message);
+            filterChipsContainer.addView(chip);
+        }
+        // Set "All" as selected by default
+        updateChipStyle((Button) filterChipsContainer.getChildAt(0), true);
+    }
+
+    private void updateChipStyle(Button chip, boolean selected) {
+        if (selected) {
+            chip.setBackgroundTintList(android.content.res.ColorStateList
+                    .valueOf(Color.parseColor("#1A1A2E")));
+            chip.setTextColor(Color.WHITE);
+        } else {
+            chip.setBackgroundTintList(android.content.res.ColorStateList
+                    .valueOf(Color.parseColor("#E0E0E0")));
+            chip.setTextColor(Color.parseColor("#333333"));
+        }
+    }
+
+    private void setupSearch() {
+        searchInput.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                applyFilters();
             }
+            public void afterTextChanged(Editable s) {}
         });
     }
 
-    private Event buildEvent(boolean requireEventId) {
-        return EventFormValidator.buildEvent(
-                eventIdInput.getText().toString(),
-                titleInput.getText().toString(),
-                descriptionInput.getText().toString(),
-                locationInput.getText().toString(),
-                dateInput.getText().toString(),
-                totalSeatsInput.getText().toString(),
-                availableSeatsInput.getText().toString(),
-                String.valueOf(categorySpinner.getSelectedItem()),
-                String.valueOf(statusSpinner.getSelectedItem()),
-                requireEventId
-        );
+    private void setupDateFilter() {
+        btnDateFilter.setOnClickListener(v -> {
+            Calendar cal = Calendar.getInstance();
+            new DatePickerDialog(this, (view, year, month, day) -> {
+                cal.set(year, month, day, 0, 0, 0);
+                selectedDate = cal.getTime();
+                btnDateFilter.setText(year + "-" + (month + 1) + "-" + day);
+                btnClearFilters.setVisibility(View.VISIBLE);
+                applyFilters();
+            }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH),
+                    cal.get(Calendar.DAY_OF_MONTH)).show();
+        });
     }
 
-    private void populateForm(Event event) {
-        eventIdInput.setText(event.getEventId());
-        titleInput.setText(event.getTitle());
-        descriptionInput.setText(event.getDescription());
-        locationInput.setText(event.getLocation());
-        dateInput.setText(EventFormValidator.formatDate(event.getDate()));
-        totalSeatsInput.setText(String.valueOf(event.getTotalSeats()));
-        availableSeatsInput.setText(String.valueOf(event.getAvailableSeats()));
-        setSpinnerValue(categorySpinner, event.getCategory().toFirestoreValue());
-        setSpinnerValue(statusSpinner, event.getStatus().toFirestoreValue());
-    }
-
-    private void openDateTimePicker() {
-        Calendar calendar = Calendar.getInstance();
-        applyExistingDateTime(calendar);
-
-        DatePickerDialog datePickerDialog = new DatePickerDialog(
-                this,
-                (datePicker, year, month, dayOfMonth) -> {
-                    Calendar selectedCalendar = Calendar.getInstance();
-                    selectedCalendar.set(Calendar.YEAR, year);
-                    selectedCalendar.set(Calendar.MONTH, month);
-                    selectedCalendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
-                    openTimePicker(selectedCalendar);
-                },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-        );
-        datePickerDialog.show();
-    }
-
-    private void openTimePicker(Calendar selectedCalendar) {
-        Calendar currentCalendar = Calendar.getInstance();
-        applyExistingDateTime(currentCalendar);
-
-        TimePickerDialog timePickerDialog = new TimePickerDialog(
-                this,
-                (timePicker, hourOfDay, minute) -> {
-                    selectedCalendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
-                    selectedCalendar.set(Calendar.MINUTE, minute);
-                    selectedCalendar.set(Calendar.SECOND, 0);
-                    selectedCalendar.set(Calendar.MILLISECOND, 0);
-                    dateInput.setText(EventFormValidator.formatDate(selectedCalendar.getTime()));
-                },
-                currentCalendar.get(Calendar.HOUR_OF_DAY),
-                currentCalendar.get(Calendar.MINUTE),
-                false
-        );
-        timePickerDialog.show();
-    }
-
-    private void applyExistingDateTime(Calendar calendar) {
-        String existingValue = dateInput.getText().toString().trim();
-        if (existingValue.isEmpty()) {
-            return;
-        }
-
-        try {
-            calendar.setTime(EventFormValidator.buildEvent(
-                    "preview",
-                    "preview",
-                    "preview",
-                    "preview",
-                    existingValue,
-                    "1",
-                    "1",
-                    EventCategory.MOVIE.toFirestoreValue(),
-                    EventStatus.AVAILABLE.toFirestoreValue(),
-                    false
-            ).getDate());
-        } catch (IllegalArgumentException ignored) {
-            // Fall back to the current date/time when the field contains an invalid value.
-        }
-    }
-
-    private void setSpinnerValue(Spinner spinner, String value) {
-        ArrayAdapter<?> adapter = (ArrayAdapter<?>) spinner.getAdapter();
-        for (int index = 0; index < adapter.getCount(); index++) {
-            if (value.equals(adapter.getItem(index))) {
-                spinner.setSelection(index);
-                break;
+    private void setupLocationFilter() {
+        btnLocationFilter.setOnClickListener(v -> {
+            // Build unique location list
+            Set<String> locations = new LinkedHashSet<>();
+            locations.add("Any Location");
+            for (Event e : allEvents) {
+                if (e.getLocation() != null) locations.add(e.getLocation());
             }
-        }
+            String[] locArray = locations.toArray(new String[0]);
+
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("Filter by Location")
+                    .setItems(locArray, (dialog, which) -> {
+                        selectedLocation = which == 0 ? null : locArray[which];
+                        btnLocationFilter.setText(which == 0 ? "Any Location" : locArray[which]);
+                        if (selectedLocation != null) btnClearFilters.setVisibility(View.VISIBLE);
+                        applyFilters();
+                    }).show();
+        });
     }
 
-    private String buildReservationDisplay(List<ReservationSummary> reservations) {
-        StringBuilder builder = new StringBuilder();
-
-        for (int index = 0; index < reservations.size(); index++) {
-            if (index > 0) {
-                builder.append("\n\n");
+    private void setupClearFilters() {
+        btnClearFilters.setOnClickListener(v -> {
+            selectedCategory = null;
+            selectedDate = null;
+            selectedLocation = null;
+            searchInput.setText("");
+            btnDateFilter.setText("Any Date");
+            btnLocationFilter.setText("Any Location");
+            btnClearFilters.setVisibility(View.GONE);
+            // Reset chip selection to "All"
+            for (int i = 0; i < filterChipsContainer.getChildCount(); i++) {
+                updateChipStyle((Button) filterChipsContainer.getChildAt(i), i == 0);
             }
-            builder.append(reservations.get(index).toDisplayString());
+            applyFilters();
+        });
+    }
+
+    private void applyFilters() {
+        String query = searchInput.getText().toString().toLowerCase().trim();
+
+        List<Event> result = new ArrayList<>();
+        for (Event e : allEvents) {
+            // Search filter
+            if (!query.isEmpty()) {
+                boolean matchesSearch = (e.getTitle() != null && e.getTitle().toLowerCase().contains(query))
+                        || (e.getLocation() != null && e.getLocation().toLowerCase().contains(query))
+                        || (e.getCategory() != null && e.getCategory().toLowerCase().contains(query));
+                if (!matchesSearch) continue;
+            }
+            // Category filter
+            if (selectedCategory != null && e.getCategory() != null &&
+                    !selectedCategory.equalsIgnoreCase(e.getCategory())) continue;
+            if (selectedDate != null && e.getDate() != null) {
+                Calendar selCal = Calendar.getInstance(); selCal.setTime(selectedDate);
+                Calendar evCal = Calendar.getInstance(); evCal.setTime(e.getDate());
+                boolean sameDay = selCal.get(Calendar.YEAR) == evCal.get(Calendar.YEAR)
+                        && selCal.get(Calendar.DAY_OF_YEAR) == evCal.get(Calendar.DAY_OF_YEAR);
+                if (!sameDay) continue;
+            }
+            // Location filter
+            if (selectedLocation != null && !selectedLocation.equalsIgnoreCase(e.getLocation())) continue;
+
+            result.add(e);
         }
 
-        return builder.toString();
+        filteredEvents.clear();
+        filteredEvents.addAll(result);
+        adapter.setEvents(filteredEvents);
+        resultsCount.setText(result.size() + " event" + (result.size() == 1 ? "" : "s") + " found");
+
+        boolean hasActiveFilter = selectedDate != null || selectedLocation != null
+                || selectedCategory != null || !query.isEmpty();
+        btnClearFilters.setVisibility(hasActiveFilter ? View.VISIBLE : View.GONE);
     }
 
-    private void clearForm() {
-        eventIdInput.setText("");
-        titleInput.setText("");
-        descriptionInput.setText("");
-        locationInput.setText("");
-        dateInput.setText("");
-        totalSeatsInput.setText("");
-        availableSeatsInput.setText("");
-        categorySpinner.setSelection(0);
-        statusSpinner.setSelection(0);
-        feedbackText.setText("");
-        reservationsText.setText(getString(R.string.reservations_placeholder));
-    }
-
-    private String readEventId() {
-        return eventIdInput.getText().toString().trim();
-    }
-
-    private void showSuccess(String message) {
-        feedbackText.setText(message);
-        feedbackText.setTextColor(getColor(android.R.color.holo_green_dark));
-    }
-
-    private void showError(String message) {
-        feedbackText.setText(message);
-        feedbackText.setTextColor(getColor(android.R.color.holo_red_dark));
+    private void loadEvents() {
+        db.collection("events").get().addOnSuccessListener(snap -> {
+            allEvents.clear();
+            for (DocumentSnapshot doc : snap) {
+                Event event = doc.toObject(Event.class);
+                if (event != null) allEvents.add(event);
+            }
+            applyFilters(); 
+        });
     }
 }

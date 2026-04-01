@@ -58,6 +58,8 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.14.2")
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+    implementation("com.google.firebase:firebase-firestore")
 }
 
 tasks.withType<Test> {
