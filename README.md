@@ -32,7 +32,17 @@ Run a single test class:
 
 ### Instrumentation / System Testing
 
-End-to-end and UI tests are implemented using Android instrumentation tests and executed on an Android emulator to validate full application workflows.
+Instrumentation tests run on a **device or emulator** (not the JVM). This project includes **Espresso smoke tests** for login and registration (`LoginRegistrationSmokeTest`): main fields are visible, empty-submit validation shows errors, and register links open the expected screens. They do **not** sign in or create real accounts.
+
+**Run instrumentation tests** (emulator running or device connected with USB debugging):
+
+```bash
+./gradlew connectedDebugAndroidTest
+```
+
+**Test report:** after a run, Gradle prints where reports were written; they are usually under `app/build/reports/` or `app/build/outputs/androidTest-results/` (exact layout depends on the Android Gradle Plugin version). Android Studio also shows results in the **Run** tool window.
+
+The **Android Instrumentation** GitHub Actions workflow runs these tests on an emulator.
 
 ### Continuous Integration
 
