@@ -17,9 +17,7 @@ import com.example.bookingapp.models.Event;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class MainActivity extends AppCompatActivity {
 
