@@ -3,6 +3,8 @@ package com.example.bookingapp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -11,6 +13,8 @@ import android.widget.Button;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -127,9 +131,43 @@ public class LoginActivityTest {
         assertEquals("Log In", loginButton.getText().toString());
     }
 
+    @Test
+    public void navigateAfterLogin_adminEmailNavigatesInAdminMode() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        invokePrivate(activity, "navigateAfterLogin", String.class, LoginActivity.ADMIN_EMAIL);
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertTrue(next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, false));
+    }
+
+    @Test
+    public void onStart_withExistingAdminUserNavigatesToMain() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        FirebaseUser user = mock(FirebaseUser.class);
+        when(user.getEmail()).thenReturn(LoginActivity.ADMIN_EMAIL);
+        when(auth.getCurrentUser()).thenReturn(user);
+        setField(activity, "mAuth", auth);
+
+        activity.onStart();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, false));
+    }
+
     private Object invokePrivate(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
         method.setAccessible(true);
         return method.invoke(target, argument);
+    }
+
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }

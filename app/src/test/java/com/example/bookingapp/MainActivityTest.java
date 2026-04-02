@@ -214,6 +214,58 @@ public class MainActivityTest {
         assertFalse(preferences.contains(MainActivity.KEY_PENDING_DELETE_EVENT_NAME));
     }
 
+    @Test
+    public void showPendingDeleteDialogIfNeeded_withoutPendingDeleteDoesNothing() throws Exception {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+
+        invokePrivate(activity, "showPendingDeleteDialogIfNeeded");
+
+        assertEquals(null, ShadowAlertDialog.getLatestAlertDialog());
+    }
+
+    @Test
+    public void toListEvent_withNullDataReturnsNull() throws Exception {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        DocumentSnapshot doc = mock(DocumentSnapshot.class);
+        when(doc.getData()).thenReturn(null);
+
+        Object result = invokePrivate(activity, "toListEvent", DocumentSnapshot.class, doc);
+
+        assertEquals(null, result);
+    }
+
+    @Test
+    public void readInt_handlesInvalidStringAndNull() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+
+        assertEquals(0, invokePrivate(activity, "readInt", Object.class, "abc"));
+        assertEquals(0, invokePrivate(activity, "readInt", Object.class, null));
+    }
+
+    @Test
+    public void readDate_returnsFallbackForInvalidValue() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Object value = invokePrivate(activity, "readDate", Object.class, "invalid");
+
+        assertTrue(value instanceof Date);
+    }
+
+    @Test
+    public void resolveAdminMode_usesPersistedAdminPreference() throws Exception {
+        SharedPreferences preferences = ApplicationProvider.getApplicationContext()
+                .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        preferences.edit().putBoolean(LoginActivity.KEY_ADMIN_MODE, true).apply();
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+
+        boolean admin = (boolean) invokePrivate(activity, "resolveAdminMode");
+
+        assertTrue(admin);
+    }
+
     private Event createListEvent(String id, String title, String location, String category, Date date) {
         Event event = new Event();
         event.setEventId(id);

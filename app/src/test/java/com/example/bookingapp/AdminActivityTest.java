@@ -462,6 +462,71 @@ public class AdminActivityTest {
         );
     }
 
+    @Test
+    public void showNewEventForm_clearsFieldsAndHidesEditOnlyControls() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        invokePrivate(activity, "showNewEventForm");
+
+        assertEquals("", ((EditText) activity.findViewById(R.id.eventIdInput)).getText().toString());
+        assertEquals("", ((EditText) activity.findViewById(R.id.titleInput)).getText().toString());
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.addEventButton).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.updateEventButton).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.deleteEventButton).getVisibility());
+    }
+
+    @Test
+    public void validateSeatCounts_acceptsBlankAndNumericValues() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        assertTrue((boolean) invokePrivate(activity, "validateSeatCounts"));
+
+        ((EditText) activity.findViewById(R.id.totalSeatsInput)).setText("10");
+        ((EditText) activity.findViewById(R.id.availableSeatsInput)).setText("5");
+
+        assertTrue((boolean) invokePrivate(activity, "validateSeatCounts"));
+    }
+
+    @Test
+    public void buildReservationDisplay_joinsReservationsWithBlankLines() throws Exception {
+        AdminActivity activity = buildActivity();
+        ReservationSummary first = new ReservationSummary("r1", java.util.Map.of("name", "Jane"));
+        ReservationSummary second = new ReservationSummary("r2", java.util.Map.of("name", "John"));
+
+        String display = (String) invokePrivate(activity, "buildReservationDisplay", List.class, List.of(first, second));
+
+        assertTrue(display.contains("Reservation ID: r1"));
+        assertTrue(display.contains("\n\n"));
+        assertTrue(display.contains("Reservation ID: r2"));
+    }
+
+    @Test
+    public void updateSavedDialog_positiveActionFinishesActivity() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "showUpdateSavedDialog");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertTrue(activity.isFinishing());
+    }
+
+    @Test
+    public void addSavedDialog_positiveActionFinishesActivity() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "showAddEventSavedDialog");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertTrue(activity.isFinishing());
+    }
+
     private AdminActivity buildActivity() {
         return Robolectric.buildActivity(AdminActivity.class).setup().get();
     }
