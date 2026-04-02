@@ -44,7 +44,6 @@ public class Event {
 
     // eventId
     public String getEventId() { return eventId; }
-    public void setEventId(String eventId) { this.eventId = eventId; }
 
     // title
     public String getTitle() { return title; }
