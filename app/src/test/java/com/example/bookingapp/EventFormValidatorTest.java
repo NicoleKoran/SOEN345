@@ -1,13 +1,14 @@
 package com.example.bookingapp;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class EventFormValidatorTest {
+class EventFormValidatorTest {
 
     @Test
-    public void buildEvent_setsSoldOutWhenAvailableSeatsAreZero() {
+    void buildEvent_setsSoldOutWhenAvailableSeatsAreZero() {
         Event event = EventFormValidator.buildEvent(
                 "event-1",
                 "Taylor Swift Concert",
@@ -24,35 +25,95 @@ public class EventFormValidatorTest {
         assertEquals(EventStatus.SOLDOUT, event.getStatus());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void buildEvent_rejectsAvailableSeatsGreaterThanTotalSeats() {
-        EventFormValidator.buildEvent(
+    @Test
+    void buildEvent_rejectsAvailableSeatsGreaterThanTotalSeats() {
+        assertThrows(IllegalArgumentException.class, () ->
+                EventFormValidator.buildEvent(
+                        "event-1",
+                        "Taylor Swift Concert",
+                        "Live concert experience",
+                        "Toronto",
+                        "2026-04-06 08:13",
+                        "100",
+                        "200",
+                        "concert",
+                        "available",
+                        true
+                )
+        );
+    }
+
+    @Test
+    void buildEvent_requiresEventIdWhenRequested() {
+        assertThrows(IllegalArgumentException.class, () ->
+                EventFormValidator.buildEvent(
+                        "",
+                        "Taylor Swift Concert",
+                        "Live concert experience",
+                        "Toronto",
+                        "2026-04-06 08:13",
+                        "500",
+                        "500",
+                        "concert",
+                        "available",
+                        true
+                )
+        );
+    }
+
+    @Test
+    void buildEvent_forcesAvailableSeatsToZeroWhenCancelled() {
+        Event event = EventFormValidator.buildEvent(
                 "event-1",
                 "Taylor Swift Concert",
                 "Live concert experience",
                 "Toronto",
                 "2026-04-06 08:13",
-                "100",
-                "200",
+                "500",
+                "250",
                 "concert",
-                "available",
+                "cancelled",
                 true
         );
+
+        assertEquals(0, event.getAvailableSeats());
+        assertEquals(EventStatus.CANCELLED, event.getStatus());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void buildEvent_requiresEventIdWhenRequested() {
-        EventFormValidator.buildEvent(
-                "",
+    @Test
+    void buildEvent_forcesAvailableSeatsToZeroWhenSoldOutSelected() {
+        Event event = EventFormValidator.buildEvent(
+                "event-1",
                 "Taylor Swift Concert",
                 "Live concert experience",
                 "Toronto",
                 "2026-04-06 08:13",
                 "500",
+                "250",
+                "concert",
+                "soldOut",
+                true
+        );
+
+        assertEquals(0, event.getAvailableSeats());
+        assertEquals(EventStatus.SOLDOUT, event.getStatus());
+    }
+
+    @Test
+    void formatDate_returnsValidatorPattern() {
+        Event event = EventFormValidator.buildEvent(
+                "event-1",
+                "Taylor Swift Concert",
+                "Live concert experience",
+                "Toronto",
+                "2026-04-06 08:13",
                 "500",
+                "100",
                 "concert",
                 "available",
                 true
         );
+
+        assertEquals("2026-04-06 08:13", EventFormValidator.formatDate(event.getDate()));
     }
 }
