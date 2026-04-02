@@ -46,13 +46,14 @@ public final class EventFormValidator {
         Date parsedDate = parseDate(normalizedDateText);
         int totalSeats = parseSeatValue(totalSeatsText, "Total seats");
         int availableSeats = parseSeatValue(availableSeatsText, "Available seats");
+        EventStatus selectedStatus = EventStatus.fromValue(statusText);
+        availableSeats = normalizeAvailableSeats(selectedStatus, availableSeats);
 
         if (availableSeats > totalSeats) {
             throw new IllegalArgumentException("Available seats cannot exceed total seats.");
         }
 
         EventCategory category = EventCategory.fromValue(categoryText);
-        EventStatus selectedStatus = EventStatus.fromValue(statusText);
         EventStatus normalizedStatus = normalizeStatus(selectedStatus, availableSeats);
 
         return new Event(
@@ -107,6 +108,13 @@ public final class EventFormValidator {
         }
 
         return EventStatus.AVAILABLE;
+    }
+
+    private static int normalizeAvailableSeats(EventStatus selectedStatus, int availableSeats) {
+        if (selectedStatus == EventStatus.CANCELLED || selectedStatus == EventStatus.SOLDOUT) {
+            return 0;
+        }
+        return availableSeats;
     }
 
     private static SimpleDateFormat createFormatter() {

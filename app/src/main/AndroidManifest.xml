@@ -21,6 +21,7 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".AdminActivity" />
         <activity android:name=".LoginActivity" android:exported="false"/>
         <activity android:name=".RegisterEmailActivity" />
         <activity android:name=".RegisterPhoneActivity" />

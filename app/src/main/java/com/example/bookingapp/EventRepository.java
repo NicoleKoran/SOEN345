@@ -8,6 +8,8 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -66,6 +68,25 @@ public class EventRepository {
                 .addOnFailureListener(error -> callback.onError(error.getMessage()));
     }
 
+    public void getAllEvents(EventsCallback callback) {
+        eventsCollection.get()
+                .addOnSuccessListener(snapshot -> {
+                    List<Event> events = new ArrayList<>();
+
+                    for (DocumentSnapshot document : snapshot.getDocuments()) {
+                        try {
+                            events.add(fromSnapshot(document));
+                        } catch (IllegalStateException ignored) {
+                            // Skip malformed events instead of failing the whole admin view.
+                        }
+                    }
+
+                    Collections.sort(events, Comparator.comparing(Event::getDate));
+                    callback.onSuccess(events);
+                })
+                .addOnFailureListener(error -> callback.onError(error.getMessage()));
+    }
+
     public void updateEvent(Event event, MessageCallback callback) {
         DocumentReference documentReference = eventsCollection.document(event.getEventId());
 
@@ -87,6 +108,13 @@ public class EventRepository {
         eventsCollection.document(eventId)
                 .update("status", EventStatus.CANCELLED.toFirestoreValue())
                 .addOnSuccessListener(unused -> callback.onSuccess("Event cancelled successfully."))
+                .addOnFailureListener(error -> callback.onError(error.getMessage()));
+    }
+
+    public void deleteEvent(String eventId, MessageCallback callback) {
+        eventsCollection.document(eventId)
+                .delete()
+                .addOnSuccessListener(unused -> callback.onSuccess("Event deleted successfully."))
                 .addOnFailureListener(error -> callback.onError(error.getMessage()));
     }
 
@@ -193,6 +221,12 @@ public class EventRepository {
 
     public interface ReservationsCallback {
         void onSuccess(List<ReservationSummary> reservations);
+
+        void onError(String message);
+    }
+
+    public interface EventsCallback {
+        void onSuccess(List<Event> events);
 
         void onError(String message);
     }

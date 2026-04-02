@@ -22,18 +22,29 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
         void onBookClick(Event event);
     }
 
-    private List<Event> events;
-    private OnBookClickListener bookListener;
+    public interface OnEditClickListener {
+        void onEditClick(Event event);
+    }
 
-    public EventAdapter(List<Event> events, OnBookClickListener listener) {
+    private List<Event> events;
+    private final OnBookClickListener bookListener;
+    private final OnEditClickListener editListener;
+    private final boolean adminMode;
+
+    public EventAdapter(List<Event> events,
+                        OnBookClickListener listener,
+                        OnEditClickListener editListener,
+                        boolean adminMode) {
         this.events = events;
         this.bookListener = listener;
+        this.editListener = editListener;
+        this.adminMode = adminMode;
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView title, location, date, categoryBadge, priceText;
         View categoryStripe;
-        Button bookButton;
+        Button bookButton, editEventButton;
 
         public ViewHolder(View itemView) {
             super(itemView);
@@ -44,6 +55,7 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
             priceText = itemView.findViewById(R.id.priceText);
             categoryStripe = itemView.findViewById(R.id.categoryStripe);
             bookButton = itemView.findViewById(R.id.bookButton);
+            editEventButton = itemView.findViewById(R.id.editEventButton);
         }
     }
 
@@ -74,9 +86,21 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
 
         holder.priceText.setText(event.getAvailableSeats() + " seats left");
 
-        holder.bookButton.setOnClickListener(v -> {
-            if (bookListener != null) bookListener.onBookClick(event);
-        });
+        if (adminMode) {
+            holder.bookButton.setVisibility(View.GONE);
+            holder.bookButton.setOnClickListener(null);
+            holder.editEventButton.setVisibility(View.VISIBLE);
+            holder.editEventButton.setOnClickListener(v -> {
+                if (editListener != null) editListener.onEditClick(event);
+            });
+        } else {
+            holder.bookButton.setVisibility(View.VISIBLE);
+            holder.bookButton.setOnClickListener(v -> {
+                if (bookListener != null) bookListener.onBookClick(event);
+            });
+            holder.editEventButton.setVisibility(View.GONE);
+            holder.editEventButton.setOnClickListener(null);
+        }
     }
 
     private int getCategoryColor(String category) {
