@@ -10,9 +10,11 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.content.SharedPreferences;
 import android.os.Looper;
 import android.view.View;
@@ -22,7 +24,12 @@ import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.test.core.app.ApplicationProvider;
+import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.auth.AuthCredential;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.FirebaseApp;
 
 import org.junit.Before;
@@ -34,10 +41,14 @@ import org.robolectric.shadows.ShadowAlertDialog;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mockStatic;
 
 @RunWith(RobolectricTestRunner.class)
 public class AdminActivityTest {
@@ -59,6 +70,10 @@ public class AdminActivityTest {
         assertEquals(View.GONE, activity.findViewById(R.id.statusSpinner).getVisibility());
         assertEquals(View.GONE, activity.findViewById(R.id.reservationsLabel).getVisibility());
         assertEquals(View.GONE, activity.findViewById(R.id.reservationsText).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.searchInput).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.resultsCount).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.eventsRecyclerView).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.newEventButton).getVisibility());
     }
 
     @Test
@@ -527,6 +542,231 @@ public class AdminActivityTest {
         assertTrue(activity.isFinishing());
     }
 
+    @Test
+    public void eventsListEditAction_populatesFormThroughConfiguredListener() throws Exception {
+        AdminActivity activity = buildActivity();
+        RecyclerView.Adapter adapter = ((RecyclerView) activity.findViewById(R.id.eventsRecyclerView)).getAdapter();
+        ((com.example.bookingapp.adapters.AdminEventAdapter) adapter).setEvents(List.of(sampleEvent()));
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
+        RecyclerView.ViewHolder holder = adapter.onCreateViewHolder(parent, 0);
+
+        //noinspection unchecked,rawtypes
+        ((RecyclerView.Adapter) adapter).onBindViewHolder(holder, 0);
+        holder.itemView.findViewById(R.id.editButton).performClick();
+
+        assertEquals("Jazz Night", ((EditText) activity.findViewById(R.id.titleInput)).getText().toString());
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.updateEventButton).getVisibility());
+    }
+
+    @Test
+    public void dateInput_clickAndFocusOpenDatePicker() {
+        AdminActivity activity = buildActivity();
+        EditText dateInput = activity.findViewById(R.id.dateInput);
+
+        assertEquals(null, dateInput.getKeyListener());
+
+        dateInput.performClick();
+        assertTrue(ShadowAlertDialog.getLatestAlertDialog() instanceof DatePickerDialog);
+
+        ShadowAlertDialog.getLatestAlertDialog().dismiss();
+        dateInput.getOnFocusChangeListener().onFocusChange(dateInput, true);
+        assertTrue(ShadowAlertDialog.getLatestAlertDialog() instanceof DatePickerDialog);
+    }
+
+    @Test
+    public void onBackPressedDispatcher_triggersUnsavedChangesDialog() {
+        AdminActivity activity = buildActivity();
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Changed");
+
+        activity.getOnBackPressedDispatcher().onBackPressed();
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertEquals(activity.getString(R.string.unsaved_changes_title), shadowOf(dialog).getTitle().toString());
+    }
+
+    @Test
+    public void refreshEvents_successLoadsEventsAndFilters() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        List<Event> events = List.of(sampleEvent(), new Event(
+                "event-8",
+                "Movie Night",
+                "Marvel marathon",
+                "Toronto",
+                new Date(1775538780000L),
+                100,
+                80,
+                EventCategory.MOVIE,
+                EventStatus.AVAILABLE
+        ));
+
+        doAnswer(invocation -> {
+            EventRepository.EventsCallback callback = invocation.getArgument(0);
+            callback.onSuccess(events);
+            return null;
+        }).when(repository).getAllEvents(any(EventRepository.EventsCallback.class));
+
+        invokePrivate(activity, "refreshEvents");
+
+        assertEquals("2 event(s)", ((TextView) activity.findViewById(R.id.resultsCount)).getText().toString());
+    }
+
+    @Test
+    public void refreshEvents_errorShowsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+
+        doAnswer(invocation -> {
+            EventRepository.EventsCallback callback = invocation.getArgument(0);
+            callback.onError("Load failed.");
+            return null;
+        }).when(repository).getAllEvents(any(EventRepository.EventsCallback.class));
+
+        invokePrivate(activity, "refreshEvents");
+
+        assertEquals("Load failed.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void searchWatcher_filtersEventsAndShowsNoResultsMessage() throws Exception {
+        AdminActivity activity = buildActivity();
+        @SuppressWarnings("unchecked")
+        List<Event> events = (List<Event>) getField(activity, "allEvents");
+        events.clear();
+        events.add(sampleEvent());
+
+        ((EditText) activity.findViewById(R.id.searchInput)).setText("nomatch");
+
+        assertEquals("No events match the current search.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void filterEvents_matchingResultClearsNoEventsMessage() throws Exception {
+        AdminActivity activity = buildActivity();
+        @SuppressWarnings("unchecked")
+        List<Event> events = (List<Event>) getField(activity, "allEvents");
+        events.clear();
+        events.add(sampleEvent());
+        ((TextView) activity.findViewById(R.id.feedbackText)).setText(R.string.no_events_found);
+        ((EditText) activity.findViewById(R.id.searchInput)).setText("jazz");
+
+        invokePrivate(activity, "filterEvents");
+
+        assertEquals("", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void matchesQuery_andContains_coverAllBranches() throws Exception {
+        AdminActivity activity = buildActivity();
+        Event event = sampleEvent();
+
+        assertTrue((boolean) invokePrivate(activity, "matchesQuery", Event.class, String.class, event, "montreal"));
+        assertFalse((boolean) invokePrivate(activity, "contains", String.class, String.class, null, "montreal"));
+    }
+
+    @Test
+    public void promptDeleteWithPassword_withoutEventIdShowsError() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "promptDeleteWithPassword");
+
+        assertEquals("Load an event before deleting it.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void verifyDeletionPasswordAndDelete_hardcodedAdminPasswordDeletesEvent() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        doAnswer(invocation -> {
+            EventRepository.MessageCallback callback = invocation.getArgument(1);
+            callback.onSuccess("deleted");
+            return null;
+        }).when(repository).deleteEvent(eq("event-7"), any(EventRepository.MessageCallback.class));
+
+        try (var auth = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+            auth.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            when(firebaseAuth.getCurrentUser()).thenReturn(null);
+
+            invokePrivate(activity, "verifyDeletionPasswordAndDelete", String.class, String.class, "event-7", LoginActivity.ADMIN_PASSWORD);
+        }
+
+        assertTrue(activity.isFinishing());
+    }
+
+    @Test
+    public void verifyDeletionPasswordAndDelete_invalidWithoutCurrentUserShowsError() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        try (var auth = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+            auth.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            when(firebaseAuth.getCurrentUser()).thenReturn(null);
+
+            invokePrivate(activity, "verifyDeletionPasswordAndDelete", String.class, String.class, "event-7", "wrong");
+        }
+
+        assertEquals(
+                activity.getString(R.string.delete_password_invalid),
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString()
+        );
+    }
+
+    @Test
+    public void verifyDeletionPasswordAndDelete_reauthFailureShowsError() throws Exception {
+        AdminActivity activity = buildActivity();
+        FirebaseUser user = mock(FirebaseUser.class);
+        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+        AuthCredential credential = mock(AuthCredential.class);
+
+        when(user.getEmail()).thenReturn("user@test.com");
+        when(user.reauthenticate(credential)).thenReturn(Tasks.forException(new RuntimeException("Bad password")));
+        when(firebaseAuth.getCurrentUser()).thenReturn(user);
+
+        try (var auth = mockStatic(FirebaseAuth.class);
+             var emailAuth = mockStatic(com.google.firebase.auth.EmailAuthProvider.class)) {
+            auth.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            emailAuth.when(() -> com.google.firebase.auth.EmailAuthProvider.getCredential("user@test.com", "wrong"))
+                    .thenReturn(credential);
+
+            invokePrivate(activity, "verifyDeletionPasswordAndDelete", String.class, String.class, "event-7", "wrong");
+            shadowOf(Looper.getMainLooper()).idle();
+        }
+
+        assertEquals("Bad password", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void applyExistingDateTime_handlesValidAndInvalidExistingDate() throws Exception {
+        AdminActivity activity = buildActivity();
+        Calendar calendar = Calendar.getInstance();
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("2026-04-05 19:13");
+
+        invokePrivate(activity, "applyExistingDateTime", Calendar.class, calendar);
+
+        assertEquals(2026, calendar.get(Calendar.YEAR));
+
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("invalid");
+        invokePrivate(activity, "applyExistingDateTime", Calendar.class, calendar);
+        assertEquals(2026, calendar.get(Calendar.YEAR));
+    }
+
+    @Test
+    public void openDateTimePicker_showsDateDialogUsingExistingDate() throws Exception {
+        AdminActivity activity = buildActivity();
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("2026-04-05 19:13");
+
+        invokePrivate(activity, "openDateTimePicker");
+
+        assertTrue(ShadowAlertDialog.getLatestAlertDialog() instanceof DatePickerDialog);
+    }
+
     private AdminActivity buildActivity() {
         return Robolectric.buildActivity(AdminActivity.class).setup().get();
     }
@@ -564,6 +804,16 @@ public class AdminActivityTest {
         }
     }
 
+    private Object getField(Object target, String fieldName) {
+        try {
+            Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field.get(target);
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
+    }
+
     private Object invokePrivate(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
         method.setAccessible(true);
@@ -574,5 +824,18 @@ public class AdminActivityTest {
         Method method = target.getClass().getDeclaredMethod(methodName);
         method.setAccessible(true);
         return method.invoke(target);
+    }
+
+    private Object invokePrivate(
+            Object target,
+            String methodName,
+            Class<?> firstType,
+            Class<?> secondType,
+            Object firstArgument,
+            Object secondArgument
+    ) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, firstType, secondType);
+        method.setAccessible(true);
+        return method.invoke(target, firstArgument, secondArgument);
     }
 }

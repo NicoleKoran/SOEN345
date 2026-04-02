@@ -143,6 +143,28 @@ public class LoginActivityTest {
     }
 
     @Test
+    public void isHardcodedAdmin_returnsTrueOnlyForMatchingCredentials() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        assertTrue((boolean) invokePrivate(
+                activity,
+                "isHardcodedAdmin",
+                String.class,
+                String.class,
+                LoginActivity.ADMIN_EMAIL,
+                LoginActivity.ADMIN_PASSWORD
+        ));
+        assertTrue(!(boolean) invokePrivate(
+                activity,
+                "isHardcodedAdmin",
+                String.class,
+                String.class,
+                "user@test.com",
+                "wrong"
+        ));
+    }
+
+    @Test
     public void onStart_withExistingAdminUserNavigatesToMain() throws Exception {
         LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
         FirebaseAuth auth = mock(FirebaseAuth.class);
@@ -163,6 +185,19 @@ public class LoginActivityTest {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
         method.setAccessible(true);
         return method.invoke(target, argument);
+    }
+
+    private Object invokePrivate(
+            Object target,
+            String methodName,
+            Class<?> firstType,
+            Class<?> secondType,
+            Object firstArgument,
+            Object secondArgument
+    ) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, firstType, secondType);
+        method.setAccessible(true);
+        return method.invoke(target, firstArgument, secondArgument);
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

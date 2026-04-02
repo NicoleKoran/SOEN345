@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.robolectric.Shadows.shadowOf;
 
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.view.View;
@@ -28,6 +30,7 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.shadows.ShadowAlertDialog;
 import org.robolectric.shadows.ShadowApplication;
+import org.robolectric.shadows.ShadowToast;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -215,6 +218,132 @@ public class MainActivityTest {
     }
 
     @Test
+    public void nonAdminEventCard_bookButtonShowsToast() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
+        event.setAvailableSeats(40);
+        activity.filteredEvents.clear();
+        activity.filteredEvents.add(event);
+        activity.adapter.setEvents(activity.filteredEvents);
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
+        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder = activity.adapter.onCreateViewHolder(parent, 0);
+        activity.adapter.onBindViewHolder(holder, 0);
+        holder.itemView.findViewById(R.id.bookButton).performClick();
+
+        assertEquals("Booking: Jazz Night", ShadowToast.getTextOfLatestToast());
+    }
+
+    @Test
+    public void adminEventCard_editButtonOpensAdminActivityWithEventId() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        Event event = createListEvent("event-7", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
+        activity.filteredEvents.clear();
+        activity.filteredEvents.add(event);
+        activity.adapter.setEvents(activity.filteredEvents);
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
+        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder = activity.adapter.onCreateViewHolder(parent, 0);
+        activity.adapter.onBindViewHolder(holder, 0);
+        holder.itemView.findViewById(R.id.editEventButton).performClick();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(AdminActivity.class.getName(), next.getComponent().getClassName());
+        assertEquals("event-7", next.getStringExtra("event_id"));
+    }
+
+    @Test
+    public void categoryChipClick_updatesSelectionAndFiltersResults() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        activity.allEvents = new ArrayList<>();
+        activity.filteredEvents = new ArrayList<>();
+        Event concert = createListEvent("1", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
+        Event movie = createListEvent("2", "Movie Night", "Montreal", "movie", dateAt(2026, Calendar.APRIL, 5));
+        activity.allEvents.add(concert);
+        activity.allEvents.add(movie);
+
+        Button concertChip = (Button) activity.filterChipsContainer.getChildAt(1);
+        concertChip.performClick();
+
+        assertEquals("concert", activity.selectedCategory);
+        assertEquals(1, activity.filteredEvents.size());
+        assertEquals("1", activity.filteredEvents.get(0).getEventId());
+    }
+
+    @Test
+    public void dateFilterDialog_setsDateAndShowsClearButton() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+
+        activity.btnDateFilter.performClick();
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertTrue(dialog instanceof DatePickerDialog);
+        android.app.DatePickerDialog.OnDateSetListener listener =
+                (android.app.DatePickerDialog.OnDateSetListener) readField(dialog, "mDateSetListener");
+        listener.onDateSet(null, 2026, Calendar.APRIL, 5);
+
+        assertEquals("2026-4-5", activity.btnDateFilter.getText().toString());
+        assertEquals(View.VISIBLE, activity.btnClearFilters.getVisibility());
+        assertNotNull(activity.selectedDate);
+    }
+
+    @Test
+    public void locationFilterDialog_selectsLocationAndCanResetToAnyLocation() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        activity.allEvents = new ArrayList<>();
+        activity.allEvents.add(createListEvent("1", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5)));
+        activity.allEvents.add(createListEvent("2", "Movie Night", "Toronto", "movie", dateAt(2026, Calendar.APRIL, 5)));
+
+        activity.btnLocationFilter.performClick();
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        shadowOf(dialog).clickOnItem(1);
+
+        assertEquals("Montreal", activity.selectedLocation);
+        assertEquals("Montreal", activity.btnLocationFilter.getText().toString());
+        assertEquals(View.VISIBLE, activity.btnClearFilters.getVisibility());
+
+        activity.btnLocationFilter.performClick();
+        dialog = ShadowAlertDialog.getLatestAlertDialog();
+        shadowOf(dialog).clickOnItem(0);
+
+        assertEquals(null, activity.selectedLocation);
+        assertEquals("Any Location", activity.btnLocationFilter.getText().toString());
+    }
+
+    @Test
+    public void applyFilters_matchesLocationAndCategorySearchBranches() throws Exception {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+
+        Event byLocation = createListEvent("1", "Something", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
+        Event byCategory = createListEvent("2", "Else", "Toronto", "movie", dateAt(2026, Calendar.APRIL, 5));
+        activity.allEvents = new ArrayList<>();
+        activity.filteredEvents = new ArrayList<>();
+        activity.allEvents.add(byLocation);
+        activity.allEvents.add(byCategory);
+
+        activity.searchInput.setText("montreal");
+        invokePrivate(activity, "applyFilters");
+        assertEquals(1, activity.filteredEvents.size());
+        assertEquals("1", activity.filteredEvents.get(0).getEventId());
+
+        activity.searchInput.setText("movie");
+        invokePrivate(activity, "applyFilters");
+        assertEquals(1, activity.filteredEvents.size());
+        assertEquals("2", activity.filteredEvents.get(0).getEventId());
+    }
+
+    @Test
     public void showPendingDeleteDialogIfNeeded_withoutPendingDeleteDoesNothing() throws Exception {
         Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
         intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
@@ -293,5 +422,21 @@ public class MainActivityTest {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
         method.setAccessible(true);
         return method.invoke(target, argument);
+    }
+
+    private Object readField(Object target, String fieldName) {
+        Class<?> current = target.getClass();
+        while (current != null) {
+            try {
+                java.lang.reflect.Field field = current.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(target);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            } catch (IllegalAccessException exception) {
+                throw new AssertionError(exception);
+            }
+        }
+        throw new AssertionError("Field not found: " + fieldName);
     }
 }
