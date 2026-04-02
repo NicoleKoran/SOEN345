@@ -924,6 +924,33 @@ public class AdminActivityTest {
     }
 
     @Test
+    public void clearForm_resetsFeedbackAndReservationsPlaceholder() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+        ((TextView) activity.findViewById(R.id.feedbackText)).setText("Error");
+        ((TextView) activity.findViewById(R.id.reservationsText)).setText("Reservation data");
+
+        invokePrivate(activity, "clearForm");
+
+        assertEquals("", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+        assertEquals(
+                activity.getString(R.string.reservations_placeholder),
+                ((TextView) activity.findViewById(R.id.reservationsText)).getText().toString()
+        );
+        assertEquals(View.GONE, activity.findViewById(R.id.formScrollView).getVisibility());
+    }
+
+    @Test
+    public void matchesQuery_coversCategoryStatusAndEventIdFields() throws Exception {
+        AdminActivity activity = buildActivity();
+        Event event = sampleEvent();
+
+        assertTrue((boolean) invokePrivate(activity, "matchesQuery", Event.class, String.class, event, "concert"));
+        assertTrue((boolean) invokePrivate(activity, "matchesQuery", Event.class, String.class, event, "available"));
+        assertTrue((boolean) invokePrivate(activity, "matchesQuery", Event.class, String.class, event, "event-7"));
+    }
+
+    @Test
     public void setSpinnerValue_withUnknownValueLeavesSelectionUnchanged() throws Exception {
         AdminActivity activity = buildActivity();
         Spinner spinner = activity.findViewById(R.id.categorySpinner);

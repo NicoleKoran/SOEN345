@@ -9,11 +9,14 @@ import static org.mockito.Mockito.when;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Looper;
 import android.widget.Button;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
@@ -23,6 +26,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.shadows.ShadowApplication;
+import static org.robolectric.Shadows.shadowOf;
 
 import java.lang.reflect.Method;
 
@@ -248,6 +252,56 @@ public class LoginActivityTest {
                 "ADMIN@TEST.COM",
                 LoginActivity.ADMIN_PASSWORD
         ));
+    }
+
+    @Test
+    public void attemptLogin_successfulNonAdminFirebaseLoginNavigatesToMain() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        FirebaseUser user = mock(FirebaseUser.class);
+        AuthResult result = mock(AuthResult.class);
+        when(user.getEmail()).thenReturn("user@test.com");
+        when(auth.signInWithEmailAndPassword("user@test.com", "secret"))
+                .thenReturn(Tasks.forResult(result));
+        when(auth.getCurrentUser()).thenReturn(user);
+        setField(activity, "mAuth", auth);
+
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                .setText("user@test.com");
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
+                .setText("secret");
+
+        activity.findViewById(R.id.loginBtn).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
+    }
+
+    @Test
+    public void attemptLogin_failedFirebaseLoginShowsStatus() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        when(auth.signInWithEmailAndPassword("user@test.com", "wrong"))
+                .thenReturn(Tasks.forException(new RuntimeException("Bad credentials")));
+        setField(activity, "mAuth", auth);
+
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                .setText("user@test.com");
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
+                .setText("wrong");
+
+        activity.findViewById(R.id.loginBtn).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        android.widget.TextView status = activity.findViewById(R.id.statusText);
+        assertEquals(android.view.View.VISIBLE, status.getVisibility());
+        assertTrue(status.getText().toString().contains("Login failed: Bad credentials"));
+        Button loginButton = activity.findViewById(R.id.loginBtn);
+        assertTrue(loginButton.isEnabled());
+        assertEquals("Log In", loginButton.getText().toString());
     }
 
     private Object invokePrivate(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {
