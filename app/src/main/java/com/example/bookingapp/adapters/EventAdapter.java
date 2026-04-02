@@ -31,9 +31,9 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView title, location, date, categoryBadge, priceText;
-        View categoryStripe;
-        Button bookButton;
+        public TextView title, location, date, categoryBadge, priceText;
+        public View categoryStripe;
+        public Button bookButton;
 
         public ViewHolder(View itemView) {
             super(itemView);
