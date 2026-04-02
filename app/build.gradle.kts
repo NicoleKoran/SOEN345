@@ -62,6 +62,7 @@ dependencies {
     testImplementation("org.mockito:mockito-inline:5.2.0")
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.espresso.intents)
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
     implementation("com.google.firebase:firebase-firestore")
 }
