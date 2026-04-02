@@ -183,6 +183,23 @@ public class LoginActivityTest {
     }
 
     @Test
+    public void onStart_withExistingNonAdminUserNavigatesToMainWithoutAdminMode() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        FirebaseUser user = mock(FirebaseUser.class);
+        when(user.getEmail()).thenReturn("user@test.com");
+        when(auth.getCurrentUser()).thenReturn(user);
+        setField(activity, "mAuth", auth);
+
+        activity.onStart();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
+    }
+
+    @Test
     public void onStart_withoutCurrentUserDoesNotNavigate() throws Exception {
         LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
         FirebaseAuth auth = mock(FirebaseAuth.class);
@@ -192,6 +209,17 @@ public class LoginActivityTest {
         activity.onStart();
 
         assertNull(ShadowApplication.getInstance().getNextStartedActivity());
+    }
+
+    @Test
+    public void navigateAfterLogin_nullEmailNavigatesAsNonAdmin() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        invokePrivate(activity, "navigateAfterLogin", String.class, null);
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
     }
 
     @Test
@@ -206,6 +234,20 @@ public class LoginActivityTest {
                 Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK,
                 next.getFlags()
         );
+    }
+
+    @Test
+    public void isHardcodedAdmin_isCaseInsensitiveForEmail() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        assertTrue((boolean) invokePrivate(
+                activity,
+                "isHardcodedAdmin",
+                String.class,
+                String.class,
+                "ADMIN@TEST.COM",
+                LoginActivity.ADMIN_PASSWORD
+        ));
     }
 
     private Object invokePrivate(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {

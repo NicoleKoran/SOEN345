@@ -543,6 +543,32 @@ public class AdminActivityTest {
     }
 
     @Test
+    public void updateSavedDialog_negativeActionKeepsActivityOpen() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "showUpdateSavedDialog");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertFalse(activity.isFinishing());
+    }
+
+    @Test
+    public void addSavedDialog_negativeActionKeepsActivityOpen() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "showAddEventSavedDialog");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertFalse(activity.isFinishing());
+    }
+
+    @Test
     public void eventsListEditAction_populatesFormThroughConfiguredListener() throws Exception {
         AdminActivity activity = buildActivity();
         RecyclerView.Adapter adapter = ((RecyclerView) activity.findViewById(R.id.eventsRecyclerView)).getAdapter();
@@ -610,6 +636,9 @@ public class AdminActivityTest {
 
         invokePrivate(activity, "refreshEvents");
 
+        @SuppressWarnings("unchecked")
+        List<Event> allEvents = (List<Event>) getField(activity, "allEvents");
+        assertEquals(2, allEvents.size());
         assertEquals("2 event(s)", ((TextView) activity.findViewById(R.id.resultsCount)).getText().toString());
     }
 
@@ -664,6 +693,8 @@ public class AdminActivityTest {
         Event event = sampleEvent();
 
         assertTrue((boolean) invokePrivate(activity, "matchesQuery", Event.class, String.class, event, "montreal"));
+        assertFalse((boolean) invokePrivate(activity, "matchesQuery", Event.class, String.class, event, "nomatch"));
+        assertTrue((boolean) invokePrivate(activity, "contains", String.class, String.class, "Montreal", "mont"));
         assertFalse((boolean) invokePrivate(activity, "contains", String.class, String.class, null, "montreal"));
     }
 
@@ -708,6 +739,26 @@ public class AdminActivityTest {
             FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
             auth.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
             when(firebaseAuth.getCurrentUser()).thenReturn(null);
+
+            invokePrivate(activity, "verifyDeletionPasswordAndDelete", String.class, String.class, "event-7", "wrong");
+        }
+
+        assertEquals(
+                activity.getString(R.string.delete_password_invalid),
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString()
+        );
+    }
+
+    @Test
+    public void verifyDeletionPasswordAndDelete_currentUserWithoutEmailShowsError() throws Exception {
+        AdminActivity activity = buildActivity();
+        FirebaseUser user = mock(FirebaseUser.class);
+
+        try (var auth = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+            auth.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            when(firebaseAuth.getCurrentUser()).thenReturn(user);
+            when(user.getEmail()).thenReturn(null);
 
             invokePrivate(activity, "verifyDeletionPasswordAndDelete", String.class, String.class, "event-7", "wrong");
         }
@@ -870,6 +921,57 @@ public class AdminActivityTest {
         invokePrivate(activity, "showSuccess", String.class, "ok");
 
         assertEquals("", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void setSpinnerValue_withUnknownValueLeavesSelectionUnchanged() throws Exception {
+        AdminActivity activity = buildActivity();
+        Spinner spinner = activity.findViewById(R.id.categorySpinner);
+        spinner.setSelection(0);
+
+        invokePrivate(activity, "setSpinnerValue", Spinner.class, String.class, spinner, "unknown");
+
+        assertEquals(0, spinner.getSelectedItemPosition());
+    }
+
+    @Test
+    public void syncAvailableSeatsWithAvailableStatusDoesNotForceZero() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+        ((EditText) activity.findViewById(R.id.availableSeatsInput)).setText("12");
+        Spinner statusSpinner = activity.findViewById(R.id.statusSpinner);
+        statusSpinner.setSelection(0);
+
+        invokePrivate(activity, "syncAvailableSeatsWithStatus");
+
+        assertEquals("12", ((EditText) activity.findViewById(R.id.availableSeatsInput)).getText().toString());
+    }
+
+    @Test
+    public void addEventExistsDialog_positiveActionFinishesActivity() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "showAddEventExistsDialog");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertTrue(activity.isFinishing());
+    }
+
+    @Test
+    public void promptDeleteWithPassword_negativeActionKeepsActivityOpen() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        invokePrivate(activity, "promptDeleteWithPassword");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+        assertFalse(activity.isFinishing());
     }
 
     private AdminActivity buildActivity() {
