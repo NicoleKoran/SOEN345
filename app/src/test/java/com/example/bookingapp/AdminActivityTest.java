@@ -767,6 +767,111 @@ public class AdminActivityTest {
         assertTrue(ShadowAlertDialog.getLatestAlertDialog() instanceof DatePickerDialog);
     }
 
+    @Test
+    public void formScreenMode_withIntentEventIdLoadsEvent() {
+        android.content.Intent intent = new android.content.Intent(ApplicationProvider.getApplicationContext(), AdminActivity.class);
+        intent.putExtra(AdminActivity.EXTRA_EVENT_ID, "event-123");
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class, intent).setup().get();
+
+        assertEquals("event-123", ((EditText) activity.findViewById(R.id.eventIdInput)).getText().toString());
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.formScrollView).getVisibility());
+    }
+
+    @Test
+    public void loadEvent_repositoryErrorShowsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("event-7");
+
+        doAnswer(invocation -> {
+            EventRepository.EventCallback callback = invocation.getArgument(1);
+            callback.onError("Load failed.");
+            return null;
+        }).when(repository).getEvent(eq("event-7"), any(EventRepository.EventCallback.class));
+
+        invokePrivate(activity, "loadEvent");
+
+        assertEquals("Load failed.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void updateEvent_invalidFormShowsValidationError() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("");
+
+        invokePrivate(activity, "updateEvent");
+
+        assertEquals("Title is required.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void promptDeleteWithPassword_showsConfirmationDialogForLoadedEvent() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        invokePrivate(activity, "promptDeleteWithPassword");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(shadowOf(dialog).getMessage().toString().contains("Jazz Night"));
+    }
+
+    @Test
+    public void verifyDeletionPasswordAndDelete_reauthSuccessDeletesEvent() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+        FirebaseUser user = mock(FirebaseUser.class);
+        FirebaseAuth firebaseAuth = mock(FirebaseAuth.class);
+        AuthCredential credential = mock(AuthCredential.class);
+
+        when(user.getEmail()).thenReturn("user@test.com");
+        when(user.reauthenticate(credential)).thenReturn(Tasks.forResult(null));
+        when(firebaseAuth.getCurrentUser()).thenReturn(user);
+        doAnswer(invocation -> {
+            EventRepository.MessageCallback callback = invocation.getArgument(1);
+            callback.onSuccess("deleted");
+            return null;
+        }).when(repository).deleteEvent(eq("event-7"), any(EventRepository.MessageCallback.class));
+
+        try (var auth = mockStatic(FirebaseAuth.class);
+             var emailAuth = mockStatic(com.google.firebase.auth.EmailAuthProvider.class)) {
+            auth.when(FirebaseAuth::getInstance).thenReturn(firebaseAuth);
+            emailAuth.when(() -> com.google.firebase.auth.EmailAuthProvider.getCredential("user@test.com", "secret"))
+                    .thenReturn(credential);
+
+            invokePrivate(activity, "verifyDeletionPasswordAndDelete", String.class, String.class, "event-7", "secret");
+            shadowOf(Looper.getMainLooper()).idle();
+        }
+
+        assertTrue(activity.isFinishing());
+    }
+
+    @Test
+    public void applyExistingDateTime_withEmptyFieldLeavesCalendarUnchanged() throws Exception {
+        AdminActivity activity = buildActivity();
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(2030, Calendar.JANUARY, 1, 0, 0, 0);
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("");
+
+        invokePrivate(activity, "applyExistingDateTime", Calendar.class, calendar);
+
+        assertEquals(2030, calendar.get(Calendar.YEAR));
+    }
+
+    @Test
+    public void showSuccess_clearsExistingFeedbackText() throws Exception {
+        AdminActivity activity = buildActivity();
+        ((TextView) activity.findViewById(R.id.feedbackText)).setText("Old error");
+
+        invokePrivate(activity, "showSuccess", String.class, "ok");
+
+        assertEquals("", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
     private AdminActivity buildActivity() {
         return Robolectric.buildActivity(AdminActivity.class).setup().get();
     }

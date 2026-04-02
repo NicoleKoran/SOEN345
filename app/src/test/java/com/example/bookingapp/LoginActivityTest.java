@@ -1,6 +1,7 @@
 package com.example.bookingapp;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -179,6 +180,32 @@ public class LoginActivityTest {
         assertNotNull(next);
         assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
         assertTrue(next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, false));
+    }
+
+    @Test
+    public void onStart_withoutCurrentUserDoesNotNavigate() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        when(auth.getCurrentUser()).thenReturn(null);
+        setField(activity, "mAuth", auth);
+
+        activity.onStart();
+
+        assertNull(ShadowApplication.getInstance().getNextStartedActivity());
+    }
+
+    @Test
+    public void navigateToMain_setsClearTaskFlags() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        invokePrivate(activity, "navigateToMain", boolean.class, true);
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(
+                Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK,
+                next.getFlags()
+        );
     }
 
     private Object invokePrivate(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {

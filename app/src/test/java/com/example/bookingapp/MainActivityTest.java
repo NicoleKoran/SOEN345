@@ -3,8 +3,10 @@ package com.example.bookingapp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -20,6 +22,8 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.example.bookingapp.models.Event;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
 
@@ -395,6 +399,43 @@ public class MainActivityTest {
         assertTrue(admin);
     }
 
+    @Test
+    public void resolveAdminMode_usesFirebaseAdminUser() throws Exception {
+        FirebaseUser user = mock(FirebaseUser.class);
+        when(user.getEmail()).thenReturn(LoginActivity.ADMIN_EMAIL);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        when(auth.getCurrentUser()).thenReturn(user);
+
+        try (var authMock = mockStatic(FirebaseAuth.class)) {
+            authMock.when(FirebaseAuth::getInstance).thenReturn(auth);
+            MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+
+            boolean admin = (boolean) invokePrivate(activity, "resolveAdminMode");
+
+            assertTrue(admin);
+        }
+    }
+
+    @Test
+    public void readString_returnsFallbackWhenValueIsNull() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+
+        assertEquals("fallback", invokePrivate(activity, "readString", Object.class, String.class, null, "fallback"));
+    }
+
+    @Test
+    public void categoryAllChip_resetsSelectedCategoryToNull() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        activity.selectedCategory = "concert";
+
+        Button allChip = (Button) activity.filterChipsContainer.getChildAt(0);
+        allChip.performClick();
+
+        assertNull(activity.selectedCategory);
+    }
+
     private Event createListEvent(String id, String title, String location, String category, Date date) {
         Event event = new Event();
         event.setEventId(id);
@@ -422,6 +463,19 @@ public class MainActivityTest {
         Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
         method.setAccessible(true);
         return method.invoke(target, argument);
+    }
+
+    private Object invokePrivate(
+            Object target,
+            String methodName,
+            Class<?> firstType,
+            Class<?> secondType,
+            Object firstArgument,
+            Object secondArgument
+    ) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, firstType, secondType);
+        method.setAccessible(true);
+        return method.invoke(target, firstArgument, secondArgument);
     }
 
     private Object readField(Object target, String fieldName) {
