@@ -28,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
     EventAdapter adapter;
     List<Event> allEvents = new ArrayList<>();
     List<Event> filteredEvents = new ArrayList<>();
-    FirebaseFirestore db = FirebaseFirestore.getInstance();
+    FirebaseFirestore db;
 
     EditText searchInput;
     LinearLayout filterChipsContainer;
@@ -56,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         super.onCreate(savedInstanceState);
+        db = FirebaseFirestore.getInstance();
         setContentView(R.layout.activity_main);
 
         recyclerView = findViewById(R.id.eventsRecyclerView);
@@ -237,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
                 Event event = doc.toObject(Event.class);
                 if (event != null) allEvents.add(event);
             }
-            applyFilters(); 
+            applyFilters();
         });
     }
 }

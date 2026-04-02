@@ -1,131 +1,157 @@
-//package com.example.bookingapp;
-//
-//import static org.junit.Assert.assertEquals;
-//import static org.junit.Assert.assertTrue;
-//import static org.mockito.ArgumentMatchers.anyString;
-//import static org.mockito.Mockito.mock;
-//import static org.mockito.Mockito.mockStatic;
-//import static org.mockito.Mockito.when;
-//
-//import android.widget.Button;
-//import android.widget.EditText;
-//import android.os.Looper;
-//import android.widget.TextView;
-//
-//import androidx.test.core.app.ApplicationProvider;
-//
-//import com.google.android.gms.tasks.Tasks;
-//import com.google.firebase.FirebaseApp;
-//import com.google.firebase.database.DatabaseReference;
-//import com.google.firebase.database.FirebaseDatabase;
-//
-//import org.junit.Before;
-//import org.junit.Test;
-//import org.junit.runner.RunWith;
-//import org.mockito.MockedStatic;
-//import org.robolectric.Robolectric;
-//import org.robolectric.RobolectricTestRunner;
-//import org.robolectric.Shadows;
-//
-//@RunWith(RobolectricTestRunner.class)
-//public class MainActivityTest {
-//
-//    @Before
-//    public void setUp() {
-//        FirebaseApp.initializeApp(ApplicationProvider.getApplicationContext());
-//    }
-//
-//    @Test
-//    public void calculate_emptyInputs_showsInvalidInputMessage() {
-//        try (MockedStatic<FirebaseDatabase> db = mockStatic(FirebaseDatabase.class)) {
-//            stubEntriesReference(db);
-//            MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
-//            Button calculateBtn = activity.findViewById(R.id.calculateBtn);
-//            calculateBtn.performClick();
-//            TextView result = activity.findViewById(R.id.resultField);
-//            assertEquals("Wrong input: can't be null or non-numeric", result.getText().toString());
-//        }
-//    }
-//
-//    @Test
-//    public void calculate_validNumbers_showsSum() {
-//        try (MockedStatic<FirebaseDatabase> db = mockStatic(FirebaseDatabase.class)) {
-//            stubEntriesReference(db);
-//            MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
-//            ((EditText) activity.findViewById(R.id.input1)).setText("2");
-//            ((EditText) activity.findViewById(R.id.input2)).setText("3");
-//            activity.findViewById(R.id.calculateBtn).performClick();
-//            assertEquals("= 5", ((TextView) activity.findViewById(R.id.resultField)).getText().toString());
-//        }
-//    }
-//
-//    @Test
-//    public void calculate_nonNumeric_showsError() {
-//        try (MockedStatic<FirebaseDatabase> db = mockStatic(FirebaseDatabase.class)) {
-//            stubEntriesReference(db);
-//            MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
-//            ((EditText) activity.findViewById(R.id.input1)).setText("x");
-//            ((EditText) activity.findViewById(R.id.input2)).setText("1");
-//            activity.findViewById(R.id.calculateBtn).performClick();
-//            assertEquals(
-//                    "Wrong input: can't be null or non-numeric",
-//                    ((TextView) activity.findViewById(R.id.resultField)).getText().toString());
-//        }
-//    }
-//
-//    @Test
-//    public void database_emptyInput_setsError() {
-//        try (MockedStatic<FirebaseDatabase> db = mockStatic(FirebaseDatabase.class)) {
-//            stubEntriesReference(db);
-//            MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
-//            EditText databaseInput = activity.findViewById(R.id.databaseinput);
-//            databaseInput.setText("");
-//            activity.findViewById(R.id.databasebutton).performClick();
-//            assertEquals("Field can't be empty", databaseInput.getError().toString());
-//        }
-//    }
-//
-//    @Test
-//    public void database_failure_setsError() {
-//        try (MockedStatic<FirebaseDatabase> db = mockStatic(FirebaseDatabase.class)) {
-//            FirebaseDatabase mockDb = mock(FirebaseDatabase.class);
-//            DatabaseReference rootRef = mock(DatabaseReference.class);
-//            DatabaseReference pushedRef = mock(DatabaseReference.class);
-//            db.when(FirebaseDatabase::getInstance).thenReturn(mockDb);
-//            when(mockDb.getReference("entries")).thenReturn(rootRef);
-//            when(rootRef.push()).thenReturn(pushedRef);
-//            when(pushedRef.setValue(anyString()))
-//                    .thenReturn(Tasks.forException(new Exception("write denied")));
-//
-//            MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
-//            EditText databaseInput = activity.findViewById(R.id.databaseinput);
-//            databaseInput.setText("value");
-//            activity.findViewById(R.id.databasebutton).performClick();
-//            Shadows.shadowOf(Looper.getMainLooper()).idle();
-//            assertTrue(databaseInput.getError().toString().contains("Failed"));
-//        }
-//    }
-//
-//    @Test
-//    public void database_success_clearsInput() {
-//        try (MockedStatic<FirebaseDatabase> db = mockStatic(FirebaseDatabase.class)) {
-//            stubEntriesReference(db);
-//            MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
-//            EditText databaseInput = activity.findViewById(R.id.databaseinput);
-//            databaseInput.setText("hello");
-//            activity.findViewById(R.id.databasebutton).performClick();
-//            Shadows.shadowOf(Looper.getMainLooper()).idle();
-//            assertTrue(databaseInput.getText().toString().isEmpty());
-//        }
-//    }
-//
-//    private static void stubEntriesReference(MockedStatic<FirebaseDatabase> dbStatic) {
-//        FirebaseDatabase mockDb = mock(FirebaseDatabase.class);
-//        DatabaseReference rootRef = mock(DatabaseReference.class);
-//        DatabaseReference pushedRef = mock(DatabaseReference.class);
-//        dbStatic.when(FirebaseDatabase::getInstance).thenReturn(mockDb);
-//        when(mockDb.getReference("entries")).thenReturn(rootRef);
-//        when(rootRef.push()).thenReturn(pushedRef);
-//        when(pushedRef.setValue(anyString())).thenReturn(Tasks.forResult(null));
-//    }
-//}
+package com.example.bookingapp;
+
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
+
+import android.content.Intent;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.android.gms.tasks.Task;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.MockedStatic;
+import org.robolectric.Robolectric;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.Shadows;
+import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowActivity;
+
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 33)
+public class MainActivityTest {
+
+    private MainActivity activity;
+
+    private MainActivity buildActivity(MockedStatic<FirebaseAuth> authMock,
+                                       MockedStatic<FirebaseFirestore> fsMock,
+                                       boolean loggedIn) {
+        FirebaseAuth mockAuth = mock(FirebaseAuth.class);
+        FirebaseUser mockUser = mock(FirebaseUser.class);
+        authMock.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+        when(mockAuth.getCurrentUser()).thenReturn(loggedIn ? mockUser : null);
+
+        FirebaseFirestore mockFs = mock(FirebaseFirestore.class);
+        CollectionReference mockCollection = mock(CollectionReference.class);
+        Task mockTask = mock(Task.class);
+        fsMock.when(FirebaseFirestore::getInstance).thenReturn(mockFs);
+        when(mockFs.collection("events")).thenReturn(mockCollection);
+        when(mockCollection.get()).thenReturn(mockTask);
+        when(mockTask.addOnSuccessListener(any())).thenReturn(mockTask);
+
+        return Robolectric.buildActivity(MainActivity.class)
+                .create().start().resume().get();
+    }
+
+    @Before
+    public void setUp() {
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class);
+             MockedStatic<FirebaseFirestore> fsMock = mockStatic(FirebaseFirestore.class)) {
+            activity = buildActivity(authMock, fsMock, true);
+        }
+    }
+
+
+    @Test
+    public void clearFiltersButtonHiddenByDefaultTest() {
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        assertEquals(View.GONE, clearBtn.getVisibility());
+    }
+
+    @Test
+    public void searchInputIsEmptyByDefaultTest() {
+        EditText search = activity.findViewById(R.id.searchInput);
+        assertEquals("", search.getText().toString());
+    }
+
+    @Test
+    public void dateFilterButtonshowsDefaultText() {
+        Button dateBtn = activity.findViewById(R.id.btnDateFilter);
+        assertEquals("Any Date", dateBtn.getText().toString());
+    }
+
+    @Test
+    public void locationFilterButtonshowsDefaultText() {
+        Button locationBtn = activity.findViewById(R.id.btnLocationFilter);
+        assertEquals("Any Location", locationBtn.getText().toString());
+    }
+
+    // Search
+    @Test
+    public void typingInSearchMakesClearFiltersVisibleTest() {
+        EditText search = (EditText) activity.findViewById(R.id.searchInput);
+        search.setText("jazz");
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.btnClearFilters).getVisibility());
+    }
+
+    // Clear filters
+    @Test
+    public void clearFiltersHidesItselfTest() {
+        ((EditText) activity.findViewById(R.id.searchInput)).setText("x"); // cast it
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        clearBtn.performClick();
+        assertEquals(View.GONE, clearBtn.getVisibility());
+    }
+
+    @Test
+    public void clearFiltersResetsDateButtonText() {
+        Button dateBtn = activity.findViewById(R.id.btnDateFilter);
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        dateBtn.setText("2025-6-15");
+        clearBtn.setVisibility(View.VISIBLE);
+        clearBtn.performClick();
+        assertEquals("Any Date", dateBtn.getText().toString());
+    }
+
+    @Test
+    public void clearFiltersResetsLocationButtonText() {
+        Button locationBtn = activity.findViewById(R.id.btnLocationFilter);
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        locationBtn.setText("Montreal");
+        clearBtn.setVisibility(View.VISIBLE);
+        clearBtn.performClick();
+        assertEquals("Any Location", locationBtn.getText().toString());
+    }
+
+    // Logout
+
+    @Test
+    public void logoutButtonNavigatesToLoginActivity() {
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
+            authMock.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+            doNothing().when(mockAuth).signOut();
+
+            activity.findViewById(R.id.logoutBtn).performClick();
+
+            ShadowActivity shadow = Shadows.shadowOf(activity);
+            Intent started = shadow.getNextStartedActivity();
+            assertNotNull(started);
+            assertEquals(LoginActivity.class.getName(),
+                    started.getComponent().getClassName());
+        }
+    }
+
+    // Auth redirect
+    @Test
+    public void onStartWithNoUserRedirectsToLoginTest() {
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class);
+             MockedStatic<FirebaseFirestore> fsMock = mockStatic(FirebaseFirestore.class)) {
+
+            MainActivity unauthActivity = buildActivity(authMock, fsMock, false);
+
+            ShadowActivity shadow = Shadows.shadowOf(unauthActivity);
+            Intent started = shadow.getNextStartedActivity();
+            assertNotNull(started);
+            assertEquals(LoginActivity.class.getName(),
+                    started.getComponent().getClassName());
+        }
+    }
+}
