@@ -1,16 +1,16 @@
 package com.example.bookingapp;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Looper;
-import android.widget.TextView;
+import android.widget.Button;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -25,9 +25,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.Shadows;
-import org.robolectric.android.controller.ActivityController;
 import org.robolectric.shadows.ShadowApplication;
+import static org.robolectric.Shadows.shadowOf;
+
+import java.lang.reflect.Method;
 
 @RunWith(RobolectricTestRunner.class)
 public class LoginActivityTest {
@@ -35,132 +36,296 @@ public class LoginActivityTest {
     @Before
     public void setUp() {
         FirebaseApp.initializeApp(ApplicationProvider.getApplicationContext());
+        SharedPreferences preferences = ApplicationProvider.getApplicationContext()
+                .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        preferences.edit().clear().apply();
     }
 
     @Test
     public void attemptLogin_emptyEmail_setsError() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        activity.findViewById(R.id.loginBtn).performClick();
 
-            LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
-            activity.findViewById(R.id.loginBtn).performClick();
-            assertEquals(
-                    "Email is required",
-                    ((com.google.android.material.textfield.TextInputEditText)
-                                    activity.findViewById(R.id.emailInput))
-                            .getError()
-                            .toString());
-        }
+        assertEquals(
+                "Email is required",
+                ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                        .getError()
+                        .toString());
     }
 
     @Test
     public void attemptLogin_emptyPassword_setsError() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                .setText("a@b.com");
+        activity.findViewById(R.id.loginBtn).performClick();
 
-            LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
-            ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
-                    .setText("a@b.com");
-            activity.findViewById(R.id.loginBtn).performClick();
-            assertEquals(
-                    "Password is required",
-                    ((com.google.android.material.textfield.TextInputEditText)
-                                    activity.findViewById(R.id.passwordInput))
-                            .getError()
-                            .toString());
-        }
+        assertEquals(
+                "Password is required",
+                ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
+                        .getError()
+                        .toString());
     }
 
     @Test
-    public void attemptLogin_failure_showsStatus() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            when(mockAuth.signInWithEmailAndPassword(eq("a@b.com"), eq("secret")))
-                    .thenReturn(Tasks.forException(new Exception("invalid")));
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+    public void attemptLogin_hardcodedAdmin_navigatesToMainInAdminMode() {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                .setText(LoginActivity.ADMIN_EMAIL);
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
+                .setText(LoginActivity.ADMIN_PASSWORD);
+        activity.findViewById(R.id.loginBtn).performClick();
 
-            LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
-            ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
-                    .setText("a@b.com");
-            ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
-                    .setText("secret");
-            activity.findViewById(R.id.loginBtn).performClick();
-            Shadows.shadowOf(Looper.getMainLooper()).idle();
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, false));
 
-            TextView status = activity.findViewById(R.id.statusText);
-            assertTrue(status.getText().toString().contains("Login failed"));
-            assertEquals(android.view.View.VISIBLE, status.getVisibility());
-        }
+        SharedPreferences preferences = activity.getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        assertTrue(preferences.getBoolean(LoginActivity.KEY_ADMIN_MODE, false));
     }
 
     @Test
-    public void attemptLogin_success_navigatesHome() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            AuthResult authResult = mock(AuthResult.class);
-            when(mockAuth.signInWithEmailAndPassword(eq("a@b.com"), eq("secret")))
-                    .thenReturn(Tasks.forResult(authResult));
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+    public void registerEmailLink_opensRegisterEmailActivity() {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
 
-            LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
-            ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
-                    .setText("a@b.com");
-            ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
-                    .setText("secret");
-            activity.findViewById(R.id.loginBtn).performClick();
-            Shadows.shadowOf(Looper.getMainLooper()).idle();
+        activity.findViewById(R.id.registerEmailLink).performClick();
 
-            Intent next = ShadowApplication.getInstance().getNextStartedActivity();
-            assertNotNull(next);
-            assertEquals(HomeActivity.class.getName(), next.getComponent().getClassName());
-        }
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(RegisterEmailActivity.class.getName(), next.getComponent().getClassName());
     }
 
     @Test
-    public void onStart_loggedInUser_navigatesHome() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            FirebaseUser user = mock(FirebaseUser.class);
-            when(mockAuth.getCurrentUser()).thenReturn(user);
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+    public void registerPhoneLink_opensRegisterPhoneActivity() {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
 
-            ActivityController<LoginActivity> controller = Robolectric.buildActivity(LoginActivity.class).create();
-            controller.start();
-            Shadows.shadowOf(Looper.getMainLooper()).idle();
+        activity.findViewById(R.id.registerPhoneLink).performClick();
 
-            Intent next = ShadowApplication.getInstance().getNextStartedActivity();
-            assertNotNull(next);
-            assertEquals(HomeActivity.class.getName(), next.getComponent().getClassName());
-        }
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(RegisterPhoneActivity.class.getName(), next.getComponent().getClassName());
     }
 
     @Test
-    public void registerEmailLink_startsRegisterEmail() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            when(mockAuth.getCurrentUser()).thenReturn(null);
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+    public void navigateAfterLogin_nonAdminClearsAdminSessionAndNavigatesToMain() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        SharedPreferences preferences = activity.getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        preferences.edit().putBoolean(LoginActivity.KEY_ADMIN_MODE, true).apply();
 
-            LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
-            activity.findViewById(R.id.registerEmailLink).performClick();
-            Intent next = ShadowApplication.getInstance().getNextStartedActivity();
-            assertEquals(RegisterEmailActivity.class.getName(), next.getComponent().getClassName());
-        }
+        invokePrivate(activity, "navigateAfterLogin", String.class, "user@test.com");
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
+        assertTrue(!preferences.getBoolean(LoginActivity.KEY_ADMIN_MODE, false));
     }
 
     @Test
-    public void registerPhoneLink_startsRegisterPhone() {
-        try (var auth = mockStatic(FirebaseAuth.class)) {
-            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
-            when(mockAuth.getCurrentUser()).thenReturn(null);
-            auth.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+    public void setLoading_updatesButtonStateAndText() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        Button loginButton = activity.findViewById(R.id.loginBtn);
 
-            LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
-            activity.findViewById(R.id.registerPhoneLink).performClick();
-            Intent next = ShadowApplication.getInstance().getNextStartedActivity();
-            assertEquals(RegisterPhoneActivity.class.getName(), next.getComponent().getClassName());
-        }
+        invokePrivate(activity, "setLoading", boolean.class, true);
+        assertTrue(!loginButton.isEnabled());
+        assertEquals("Signing in…", loginButton.getText().toString());
+
+        invokePrivate(activity, "setLoading", boolean.class, false);
+        assertTrue(loginButton.isEnabled());
+        assertEquals("Log In", loginButton.getText().toString());
+    }
+
+    @Test
+    public void navigateAfterLogin_adminEmailNavigatesInAdminMode() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        invokePrivate(activity, "navigateAfterLogin", String.class, LoginActivity.ADMIN_EMAIL);
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertTrue(next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, false));
+    }
+
+    @Test
+    public void isHardcodedAdmin_returnsTrueOnlyForMatchingCredentials() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        assertTrue((boolean) invokePrivate(
+                activity,
+                "isHardcodedAdmin",
+                String.class,
+                String.class,
+                LoginActivity.ADMIN_EMAIL,
+                LoginActivity.ADMIN_PASSWORD
+        ));
+        assertTrue(!(boolean) invokePrivate(
+                activity,
+                "isHardcodedAdmin",
+                String.class,
+                String.class,
+                "user@test.com",
+                "wrong"
+        ));
+    }
+
+    @Test
+    public void onStart_withExistingAdminUserNavigatesToMain() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        FirebaseUser user = mock(FirebaseUser.class);
+        when(user.getEmail()).thenReturn(LoginActivity.ADMIN_EMAIL);
+        when(auth.getCurrentUser()).thenReturn(user);
+        setField(activity, "mAuth", auth);
+
+        activity.onStart();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, false));
+    }
+
+    @Test
+    public void onStart_withExistingNonAdminUserNavigatesToMainWithoutAdminMode() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        FirebaseUser user = mock(FirebaseUser.class);
+        when(user.getEmail()).thenReturn("user@test.com");
+        when(auth.getCurrentUser()).thenReturn(user);
+        setField(activity, "mAuth", auth);
+
+        activity.onStart();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
+    }
+
+    @Test
+    public void onStart_withoutCurrentUserDoesNotNavigate() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).create().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        when(auth.getCurrentUser()).thenReturn(null);
+        setField(activity, "mAuth", auth);
+
+        activity.onStart();
+
+        assertNull(ShadowApplication.getInstance().getNextStartedActivity());
+    }
+
+    @Test
+    public void navigateAfterLogin_nullEmailNavigatesAsNonAdmin() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        invokePrivate(activity, "navigateAfterLogin", String.class, null);
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
+    }
+
+    @Test
+    public void navigateToMain_setsClearTaskFlags() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        invokePrivate(activity, "navigateToMain", boolean.class, true);
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(
+                Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK,
+                next.getFlags()
+        );
+    }
+
+    @Test
+    public void isHardcodedAdmin_isCaseInsensitiveForEmail() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+
+        assertTrue((boolean) invokePrivate(
+                activity,
+                "isHardcodedAdmin",
+                String.class,
+                String.class,
+                "ADMIN@TEST.COM",
+                LoginActivity.ADMIN_PASSWORD
+        ));
+    }
+
+    @Test
+    public void attemptLogin_successfulNonAdminFirebaseLoginNavigatesToMain() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        FirebaseUser user = mock(FirebaseUser.class);
+        AuthResult result = mock(AuthResult.class);
+        when(user.getEmail()).thenReturn("user@test.com");
+        when(auth.signInWithEmailAndPassword("user@test.com", "secret"))
+                .thenReturn(Tasks.forResult(result));
+        when(auth.getCurrentUser()).thenReturn(user);
+        setField(activity, "mAuth", auth);
+
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                .setText("user@test.com");
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
+                .setText("secret");
+
+        activity.findViewById(R.id.loginBtn).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MainActivity.class.getName(), next.getComponent().getClassName());
+        assertTrue(!next.getBooleanExtra(MainActivity.EXTRA_IS_ADMIN, true));
+    }
+
+    @Test
+    public void attemptLogin_failedFirebaseLoginShowsStatus() throws Exception {
+        LoginActivity activity = Robolectric.buildActivity(LoginActivity.class).setup().get();
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+        when(auth.signInWithEmailAndPassword("user@test.com", "wrong"))
+                .thenReturn(Tasks.forException(new RuntimeException("Bad credentials")));
+        setField(activity, "mAuth", auth);
+
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.emailInput))
+                .setText("user@test.com");
+        ((com.google.android.material.textfield.TextInputEditText) activity.findViewById(R.id.passwordInput))
+                .setText("wrong");
+
+        activity.findViewById(R.id.loginBtn).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        android.widget.TextView status = activity.findViewById(R.id.statusText);
+        assertEquals(android.view.View.VISIBLE, status.getVisibility());
+        assertTrue(status.getText().toString().contains("Login failed: Bad credentials"));
+        Button loginButton = activity.findViewById(R.id.loginBtn);
+        assertTrue(loginButton.isEnabled());
+        assertEquals("Log In", loginButton.getText().toString());
+    }
+
+    private Object invokePrivate(Object target, String methodName, Class<?> parameterType, Object argument) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, parameterType);
+        method.setAccessible(true);
+        return method.invoke(target, argument);
+    }
+
+    private Object invokePrivate(
+            Object target,
+            String methodName,
+            Class<?> firstType,
+            Class<?> secondType,
+            Object firstArgument,
+            Object secondArgument
+    ) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, firstType, secondType);
+        method.setAccessible(true);
+        return method.invoke(target, firstArgument, secondArgument);
+    }
+
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }

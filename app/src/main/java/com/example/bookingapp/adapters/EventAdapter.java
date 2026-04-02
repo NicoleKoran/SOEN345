@@ -1,0 +1,124 @@
+package com.example.bookingapp.adapters;
+
+import android.graphics.Color;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.TextView;
+
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.bookingapp.R;
+import com.example.bookingapp.models.Event;
+
+import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.Locale;
+
+public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> {
+
+    public interface OnBookClickListener {
+        void onBookClick(Event event);
+    }
+
+    public interface OnEditClickListener {
+        void onEditClick(Event event);
+    }
+
+    private List<Event> events;
+    private final OnBookClickListener bookListener;
+    private final OnEditClickListener editListener;
+    private final boolean adminMode;
+
+    public EventAdapter(List<Event> events,
+                        OnBookClickListener listener,
+                        OnEditClickListener editListener,
+                        boolean adminMode) {
+        this.events = events;
+        this.bookListener = listener;
+        this.editListener = editListener;
+        this.adminMode = adminMode;
+    }
+
+    public static class ViewHolder extends RecyclerView.ViewHolder {
+        TextView title, location, date, categoryBadge, priceText;
+        View categoryStripe;
+        Button bookButton, editEventButton;
+
+        public ViewHolder(View itemView) {
+            super(itemView);
+            title = itemView.findViewById(R.id.titleText);
+            location = itemView.findViewById(R.id.locationText);
+            date = itemView.findViewById(R.id.dateText);
+            categoryBadge = itemView.findViewById(R.id.categoryBadge);
+            priceText = itemView.findViewById(R.id.priceText);
+            categoryStripe = itemView.findViewById(R.id.categoryStripe);
+            bookButton = itemView.findViewById(R.id.bookButton);
+            editEventButton = itemView.findViewById(R.id.editEventButton);
+        }
+    }
+
+    @Override
+    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.event_card, parent, false);
+        return new ViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(ViewHolder holder, int position) {
+        Event event = events.get(position);
+
+        holder.title.setText(event.getTitle());
+        holder.location.setText("📍 " + event.getLocation());
+
+        SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault());
+        holder.date.setText("🗓 " + sdf.format(event.getDate()));
+
+        Event.EventCategory category = event.getCategoryEnum();
+        String cat = category != null ? category.name().toUpperCase() : "EVENT";
+        int color = getCategoryColor(category != null ? category.name() : null);
+
+        holder.categoryBadge.setText(cat);
+        holder.categoryBadge.getBackground().setTint(color);
+        holder.categoryStripe.setBackgroundColor(color);
+
+        holder.priceText.setText(event.getAvailableSeats() + " seats left");
+
+        if (adminMode) {
+            holder.bookButton.setVisibility(View.GONE);
+            holder.bookButton.setOnClickListener(null);
+            holder.editEventButton.setVisibility(View.VISIBLE);
+            holder.editEventButton.setOnClickListener(v -> {
+                if (editListener != null) editListener.onEditClick(event);
+            });
+        } else {
+            holder.bookButton.setVisibility(View.VISIBLE);
+            holder.bookButton.setOnClickListener(v -> {
+                if (bookListener != null) bookListener.onBookClick(event);
+            });
+            holder.editEventButton.setVisibility(View.GONE);
+            holder.editEventButton.setOnClickListener(null);
+        }
+    }
+
+    private int getCategoryColor(String category) {
+        if (category == null) return Color.parseColor("#3949AB");
+        switch (category.toLowerCase()) {
+            case "concert": return Color.parseColor("#6A1B9A");
+            case "movie":   return Color.parseColor("#1565C0");
+            case "sport": return Color.parseColor("#E65100");
+            case "travel":  return Color.parseColor("#2E7D32");
+            default:        return Color.parseColor("#3949AB");
+        }
+    }
+
+    @Override
+    public int getItemCount() { return events.size(); }
+
+    public void setEvents(List<Event> events) {
+        this.events = events;
+        notifyDataSetChanged();
+    }
+}

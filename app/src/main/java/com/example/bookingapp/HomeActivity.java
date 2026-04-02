@@ -32,7 +32,7 @@ public class HomeActivity extends AppCompatActivity {
 
         logoutBtn.setOnClickListener(v -> {
             mAuth.signOut();
-            Intent intent = new Intent(HomeActivity.this, LoginActivity.class);
+            Intent intent = new Intent(HomeActivity.this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
         });
