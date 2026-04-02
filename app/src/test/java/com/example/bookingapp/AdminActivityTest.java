@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -301,6 +302,164 @@ public class AdminActivityTest {
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
         shadowOf(Looper.getMainLooper()).idle();
         assertTrue(activity.isFinishing());
+    }
+
+    @Test
+    public void handleBackNavigation_withoutUnsavedChangesFinishesImmediately() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "handleBackNavigation");
+
+        assertTrue(activity.isFinishing());
+    }
+
+    @Test
+    public void addEvent_invalidSeatCountsDoesNotCallRepository() {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        fillValidForm(activity);
+        ((EditText) activity.findViewById(R.id.totalSeatsInput)).setText("10");
+        ((EditText) activity.findViewById(R.id.availableSeatsInput)).setText("11");
+
+        ((Button) activity.findViewById(R.id.addEventButton)).performClick();
+
+        verify(repository, never()).addEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+    }
+
+    @Test
+    public void addEvent_repositoryErrorShowsFeedback() {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        fillValidForm(activity);
+
+        doAnswer(invocation -> {
+            EventRepository.MessageCallback callback = invocation.getArgument(1);
+            callback.onError("Add failed.");
+            return null;
+        }).when(repository).addEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+
+        ((Button) activity.findViewById(R.id.addEventButton)).performClick();
+
+        assertEquals("Add failed.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void updateEvent_repositoryErrorShowsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        doAnswer(invocation -> {
+            EventRepository.MessageCallback callback = invocation.getArgument(1);
+            callback.onError("Update failed.");
+            return null;
+        }).when(repository).updateEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+
+        ((Button) activity.findViewById(R.id.updateEventButton)).performClick();
+
+        assertEquals("Update failed.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void viewReservations_withoutEventIdShowsError() {
+        AdminActivity activity = buildActivity();
+
+        ((Button) activity.findViewById(R.id.viewReservationsButton)).performClick();
+
+        assertEquals(
+                "Enter an event ID before viewing reservations.",
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString()
+        );
+    }
+
+    @Test
+    public void viewReservations_repositoryErrorShowsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        doAnswer(invocation -> {
+            EventRepository.ReservationsCallback callback = invocation.getArgument(1);
+            callback.onError("Reservations failed.");
+            return null;
+        }).when(repository).getReservationsForEvent(eq("event-7"), any(EventRepository.ReservationsCallback.class));
+
+        ((Button) activity.findViewById(R.id.viewReservationsButton)).performClick();
+
+        assertEquals("Reservations failed.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void deleteEvent_errorShowsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        doAnswer(invocation -> {
+            EventRepository.MessageCallback callback = invocation.getArgument(1);
+            callback.onError("Delete failed.");
+            return null;
+        }).when(repository).deleteEvent(eq("event-7"), any(EventRepository.MessageCallback.class));
+
+        invokePrivate(activity, "deleteEvent", String.class, "event-7");
+
+        assertEquals("Delete failed.", ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void loadEvent_withoutIdShowsError() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "loadEvent");
+
+        assertEquals(
+                "Enter an event ID before loading an event.",
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString()
+        );
+    }
+
+    @Test
+    public void loadEvent_repositorySuccessPopulatesForm() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository repository = mock(EventRepository.class);
+        setField(activity, "eventRepository", repository);
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("event-7");
+
+        doAnswer(invocation -> {
+            EventRepository.EventCallback callback = invocation.getArgument(1);
+            callback.onSuccess(sampleEvent());
+            return null;
+        }).when(repository).getEvent(eq("event-7"), any(EventRepository.EventCallback.class));
+
+        invokePrivate(activity, "loadEvent");
+
+        assertEquals("Jazz Night", ((EditText) activity.findViewById(R.id.titleInput)).getText().toString());
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.updateEventButton).getVisibility());
+    }
+
+    @Test
+    public void addEventExistsDialog_negativeActionResetsToNewEventForm() throws Exception {
+        AdminActivity activity = buildActivity();
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        invokePrivate(activity, "showAddEventExistsDialog");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.addEventButton).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.updateEventButton).getVisibility());
+        assertEquals(
+                activity.getString(R.string.new_event_title),
+                ((TextView) activity.findViewById(R.id.eventHeaderText)).getText().toString()
+        );
     }
 
     private AdminActivity buildActivity() {

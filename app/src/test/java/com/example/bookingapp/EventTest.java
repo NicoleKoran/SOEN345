@@ -52,4 +52,48 @@ class EventTest {
 
         assertEquals("new-id", event.getEventId());
     }
+
+    @Test
+    void constructor_preservesNullAndZeroValues() {
+        Event event = new Event(
+                null,
+                "",
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null
+        );
+
+        assertEquals(null, event.getEventId());
+        assertEquals("", event.getTitle());
+        assertEquals(null, event.getDescription());
+        assertEquals(null, event.getLocation());
+        assertEquals(null, event.getDate());
+        assertEquals(0, event.getTotalSeats());
+        assertEquals(0, event.getAvailableSeats());
+        assertEquals(null, event.getCategory());
+        assertEquals(null, event.getStatus());
+    }
+
+    @Test
+    void setEventId_acceptsEmptyString() {
+        Event event = new Event(
+                "existing-id",
+                "Event",
+                "Description",
+                "Toronto",
+                new Date(),
+                10,
+                5,
+                EventCategory.MOVIE,
+                EventStatus.AVAILABLE
+        );
+
+        event.setEventId("");
+
+        assertEquals("", event.getEventId());
+    }
 }
