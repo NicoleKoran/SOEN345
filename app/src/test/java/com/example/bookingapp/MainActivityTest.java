@@ -220,22 +220,35 @@ public class MainActivityTest {
         assertTrue(shadowOf(dialog).getMessage().toString().contains("Jazz Night"));
         assertFalse(preferences.contains(MainActivity.KEY_PENDING_DELETE_EVENT_NAME));
     }
-
+//Modified nonAdminEventCard_bookButtonShowsToast to test the Booking activity--for it to pass the tests
     @Test
-    public void nonAdminEventCard_bookButtonShowsToast() {
+    public void nonAdminEventCard_bookButtonLaunchesBookingActivity() {
+        // Setup: build the activity and inject a fake event
         MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
-        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
+        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert",
+                dateAt(2026, Calendar.APRIL, 5));
         event.setAvailableSeats(40);
         activity.filteredEvents.clear();
         activity.filteredEvents.add(event);
         activity.adapter.setEvents(activity.filteredEvents);
 
+        // click the Book button
         android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
-        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder = activity.adapter.onCreateViewHolder(parent, 0);
+        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder =
+                activity.adapter.onCreateViewHolder(parent, 0);
         activity.adapter.onBindViewHolder(holder, 0);
         holder.itemView.findViewById(R.id.bookButton).performClick();
 
-        assertEquals("Booking: Jazz Night", ShadowToast.getTextOfLatestToast());
+        // Assert: BookingActivity was launched with the right event data
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull("Expected BookingActivity to be launched", next);
+        assertEquals(
+                BookingActivity.class.getName(),
+                next.getComponent().getClassName()
+        );
+        assertEquals("Jazz Night", next.getStringExtra("eventTitle"));
+        assertEquals("Montreal",   next.getStringExtra("eventLocation"));
+        assertEquals("1",          next.getStringExtra("eventId"));
     }
 
     @Test
