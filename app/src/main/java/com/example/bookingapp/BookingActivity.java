@@ -20,7 +20,7 @@ public class BookingActivity extends AppCompatActivity {
 
     // The Event object reconstructed from Intent extras
     private Event currentEvent;
-    private BookingRepository bookingRepo;
+    public BookingRepository bookingRepo; //changed to public for tests
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
