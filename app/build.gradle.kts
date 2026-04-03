@@ -65,6 +65,7 @@ dependencies {
     androidTestImplementation(libs.espresso.intents)
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 
 tasks.withType<Test> {
