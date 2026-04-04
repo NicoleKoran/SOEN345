@@ -37,6 +37,8 @@ public class BookingActivity extends AppCompatActivity {
         eventPriceText    = findViewById(R.id.eventPriceText);
         seatsText         = findViewById(R.id.seatsText);
 
+        confirmBtn.setOnClickListener(v -> confirmBooking());
+
         // ── Receive the event from EventAdapter via Intent ────────────────────
         String eventId       = getIntent().getStringExtra("eventId");
         String eventTitle    = getIntent().getStringExtra("eventTitle");
@@ -92,7 +94,6 @@ public class BookingActivity extends AppCompatActivity {
                     } else {
                         confirmBtn.setText("Confirm Booking – $" + eventPrice);
                         confirmBtn.setEnabled(true);
-                        confirmBtn.setOnClickListener(v -> confirmBooking());
                     }
                 })
                 .addOnFailureListener(e -> {
