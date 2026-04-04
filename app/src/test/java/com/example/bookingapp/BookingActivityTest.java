@@ -9,6 +9,9 @@ import android.widget.TextView;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.google.firebase.FirebaseApp;
+
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
@@ -17,6 +20,13 @@ import org.robolectric.shadows.ShadowApplication;
 
 @RunWith(RobolectricTestRunner.class)
 public class BookingActivityTest {
+
+    @Before
+    public void initFirebase() {
+        if (FirebaseApp.getApps(ApplicationProvider.getApplicationContext()).isEmpty()) {
+            FirebaseApp.initializeApp(ApplicationProvider.getApplicationContext());
+        }
+    }
 
 
      //Activity should finish if eventId is missing
