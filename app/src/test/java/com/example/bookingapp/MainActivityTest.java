@@ -437,6 +437,66 @@ public class MainActivityTest {
     }
 
     @Test
+    public void readInt_numericString_returnsParsedValue() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        assertEquals(42, invokePrivate(activity, "readInt", Object.class, "42"));
+    }
+
+    @Test
+    public void readDate_javaUtilDate_returnsSameInstance() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Date d = new Date(999888777L);
+        assertEquals(d, invokePrivate(activity, "readDate", Object.class, d));
+    }
+
+    @Test
+    public void nonAdminBookButton_usesDateTbdWhenEventDateNull() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Event event = createListEvent("1", "No Date Show", "Montreal", "concert", null);
+        event.setAvailableSeats(12);
+        activity.filteredEvents.clear();
+        activity.filteredEvents.add(event);
+        activity.adapter.setEvents(activity.filteredEvents);
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
+        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder =
+                activity.adapter.onCreateViewHolder(parent, 0);
+        activity.adapter.onBindViewHolder(holder, 0);
+        holder.itemView.findViewById(R.id.bookButton).performClick();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertTrue(next.getStringExtra("eventDate").contains("Date TBD"));
+    }
+
+    @Test
+    public void applyFilters_zeroResults_usesPluralEventsFound() throws Exception {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        activity.allEvents = new ArrayList<>();
+        activity.filteredEvents = new ArrayList<>();
+        invokePrivate(activity, "applyFilters");
+        assertEquals("0 events found", activity.resultsCount.getText().toString());
+    }
+
+    @Test
+    public void showPendingDeleteDialogIfNeeded_blankString_doesNothing() throws Exception {
+        SharedPreferences preferences = ApplicationProvider.getApplicationContext()
+                .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        preferences.edit().putString(MainActivity.KEY_PENDING_DELETE_EVENT_NAME, "   ").apply();
+
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+
+        invokePrivate(activity, "showPendingDeleteDialogIfNeeded");
+
+        assertNull(ShadowAlertDialog.getLatestAlertDialog());
+        assertEquals("   ", preferences.getString(MainActivity.KEY_PENDING_DELETE_EVENT_NAME, ""));
+    }
+
+    @Test
     public void categoryAllChip_resetsSelectedCategoryToNull() {
         Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
         intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);

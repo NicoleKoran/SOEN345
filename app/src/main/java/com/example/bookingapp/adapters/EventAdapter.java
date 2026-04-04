@@ -74,7 +74,11 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
         holder.location.setText("📍 " + event.getLocation());
 
         SimpleDateFormat sdf = new SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault());
-        holder.date.setText("🗓 " + sdf.format(event.getDate()));
+        if (event.getDate() != null) {
+            holder.date.setText("🗓 " + sdf.format(event.getDate()));
+        } else {
+            holder.date.setText("🗓 Date TBD");
+        }
 
         Event.EventCategory category = event.getCategoryEnum();
         String cat = category != null ? category.name().toUpperCase() : "EVENT";

@@ -31,6 +31,12 @@ public class BookingRepository {
         mAuth = FirebaseAuth.getInstance();
     }
 
+    /** Same-package tests inject mocks without touching production callers. */
+    BookingRepository(FirebaseFirestore db, FirebaseAuth mAuth) {
+        this.db = db;
+        this.mAuth = mAuth;
+    }
+
     // Entry point Customer.reserveTicket() calls it
 
     public void bookEvent(Event event, BookingCallback callback) {

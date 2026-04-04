@@ -1,6 +1,8 @@
 package com.example.bookingapp;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 import android.content.Intent;
@@ -9,7 +11,12 @@ import android.widget.TextView;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -17,6 +24,7 @@ import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.shadows.ShadowApplication;
+import org.robolectric.shadows.ShadowLooper;
 
 @RunWith(RobolectricTestRunner.class)
 public class BookingActivityTest {
@@ -44,22 +52,24 @@ public class BookingActivityTest {
 
     @Test
     public void onCreate_validIntent_populatesUI() {
-        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), BookingActivity.class);
-        intent.putExtra("eventId", "123");
-        intent.putExtra("eventTitle", "Concert");
-        intent.putExtra("eventLocation", "Montreal");
-        intent.putExtra("eventDate", "May 1");
-        intent.putExtra("eventPrice", "50");
-        intent.putExtra("availableSeats", 10);
+        withIdleFirestoreGet(() -> {
+            Intent intent = new Intent(ApplicationProvider.getApplicationContext(), BookingActivity.class);
+            intent.putExtra("eventId", "123");
+            intent.putExtra("eventTitle", "Concert");
+            intent.putExtra("eventLocation", "Montreal");
+            intent.putExtra("eventDate", "May 1");
+            intent.putExtra("eventPrice", "50");
+            intent.putExtra("availableSeats", 10);
 
-        BookingActivity activity =
-                Robolectric.buildActivity(BookingActivity.class, intent).setup().get();
+            BookingActivity activity =
+                    Robolectric.buildActivity(BookingActivity.class, intent).setup().get();
 
-        TextView title = activity.findViewById(R.id.eventTitleText);
-        TextView location = activity.findViewById(R.id.eventLocationText);
+            TextView title = activity.findViewById(R.id.eventTitleText);
+            TextView location = activity.findViewById(R.id.eventLocationText);
 
-        assertEquals("Concert", title.getText().toString());
-        assertTrue(location.getText().toString().contains("Montreal"));
+            assertEquals("Concert", title.getText().toString());
+            assertTrue(location.getText().toString().contains("Montreal"));
+        });
     }
 
 
@@ -67,14 +77,16 @@ public class BookingActivityTest {
 
     @Test
     public void confirmButton_initiallyDisabled() {
-        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), BookingActivity.class);
-        intent.putExtra("eventId", "123");
+        withIdleFirestoreGet(() -> {
+            Intent intent = new Intent(ApplicationProvider.getApplicationContext(), BookingActivity.class);
+            intent.putExtra("eventId", "123");
 
-        BookingActivity activity =
-                Robolectric.buildActivity(BookingActivity.class, intent).setup().get();
+            BookingActivity activity =
+                    Robolectric.buildActivity(BookingActivity.class, intent).setup().get();
 
-        Button btn = activity.findViewById(R.id.confirmBookingBtn);
-        assertFalse(btn.isEnabled());
+            Button btn = activity.findViewById(R.id.confirmBookingBtn);
+            assertFalse(btn.isEnabled());
+        });
     }
 
 
@@ -108,6 +120,7 @@ public class BookingActivityTest {
         }).when(mockRepo).bookEvent(any(), any());
 
         btn.performClick();
+        ShadowLooper.idleMainLooper();
 
         Intent next = ShadowApplication.getInstance().getNextStartedActivity();
         assertNotNull(next);
@@ -141,6 +154,7 @@ public class BookingActivityTest {
         }).when(mockRepo).bookEvent(any(), any());
 
         btn.performClick();
+        ShadowLooper.idleMainLooper();
 
         assertTrue(status.getText().toString().contains("Booking failed"));
         assertEquals(android.view.View.VISIBLE, status.getVisibility());
@@ -165,11 +179,34 @@ public class BookingActivityTest {
         doNothing().when(mockRepo).bookEvent(any(), any());
 
         btn.performClick();
+        ShadowLooper.idleMainLooper();
 
         assertFalse(btn.isEnabled());
         assertEquals("Booking...", btn.getText().toString());
     }
 
+
+    /**
+     * Avoids a real Firestore {@code get()} completing later during another test and posting
+     * {@link android.widget.Toast} on a destroyed activity (Robolectric NPE in {@code ShadowToast}).
+     */
+    @SuppressWarnings("unchecked")
+    private void withIdleFirestoreGet(Runnable body) {
+        FirebaseFirestore fs = mock(FirebaseFirestore.class);
+        CollectionReference col = mock(CollectionReference.class);
+        DocumentReference docRef = mock(DocumentReference.class);
+        Task<DocumentSnapshot> getTask = mock(Task.class);
+        when(fs.collection("events")).thenReturn(col);
+        when(col.document(anyString())).thenReturn(docRef);
+        when(docRef.get()).thenReturn(getTask);
+        when(getTask.addOnSuccessListener(any())).thenReturn(getTask);
+        when(getTask.addOnFailureListener(any())).thenReturn(getTask);
+
+        try (var fsStatic = mockStatic(FirebaseFirestore.class)) {
+            fsStatic.when(FirebaseFirestore::getInstance).thenReturn(fs);
+            body.run();
+        }
+    }
 
      //Helper: inject private field
 

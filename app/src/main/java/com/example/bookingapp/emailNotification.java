@@ -27,6 +27,8 @@ public class emailNotification implements NotificationListener {
     private static final String EMAILJS_URL =
             "https://api.emailjs.com/api/v1.0/email/send";
 
+    /** Unit tests set this to a MockWebServer URL; production leaves it null. */
+    static String testEmailEndpointUrl;
 
     private final String notificationId;
     private String message;
@@ -94,8 +96,9 @@ public class emailNotification implements NotificationListener {
 
             // async HTTP request
             OkHttpClient client = new OkHttpClient();
+            String url = testEmailEndpointUrl != null ? testEmailEndpointUrl : EMAILJS_URL;
             Request request = new Request.Builder()
-                    .url(EMAILJS_URL)
+                    .url(url)
                     .post(RequestBody.create(
                             body.toString(),
                             MediaType.parse("application/json")))
