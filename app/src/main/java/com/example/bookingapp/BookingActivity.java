@@ -1,6 +1,7 @@
 package com.example.bookingapp;
 
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -13,6 +14,14 @@ import java.text.SimpleDateFormat;
 import java.util.Locale;
 
 public class BookingActivity extends AppCompatActivity {
+
+    /**
+     * When set on the intent in a <strong>debuggable</strong> build only, skips the Firestore
+     * event fetch and builds {@link #currentEvent} from intent extras so instrumentation tests
+     * can drive the booking UI without backend data.
+     */
+    public static final String EXTRA_INSTRUMENTATION_USE_INTENT_EVENT_ONLY =
+            "com.example.bookingapp.INSTRUMENTATION_USE_INTENT_EVENT_ONLY";
 
     private Button confirmBtn;
     private TextView statusText, eventTitleText, eventLocationText,
@@ -61,6 +70,13 @@ public class BookingActivity extends AppCompatActivity {
         eventPriceText.setText("$" + eventPrice);
         seatsText.setText(availableSeats + " seats remaining");
 
+        if (isDebuggableBuild() && getIntent().getBooleanExtra(
+                EXTRA_INSTRUMENTATION_USE_INTENT_EVENT_ONLY, false)) {
+            applyInstrumentationEventFromIntent(
+                    eventId, eventTitle, eventLocation, eventPrice, eventStatus, availableSeats);
+            return;
+        }
+
         // ── Load the full Event object from Firestore for the transaction ──────
         // We need the full Event so BookingRepository can run the transaction
         confirmBtn.setEnabled(false);
@@ -100,6 +116,59 @@ public class BookingActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load event.", Toast.LENGTH_SHORT).show();
                     finish();
                 });
+    }
+
+    private boolean isDebuggableBuild() {
+        return (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
+    /**
+     * Builds {@link #currentEvent} from intent extras (debug + instrumentation only).
+     */
+    private void applyInstrumentationEventFromIntent(
+            String eventId,
+            String eventTitle,
+            String eventLocation,
+            String eventPrice,
+            String eventStatus,
+            int availableSeats) {
+
+        EventStatus st = EventStatus.fromValue(eventStatus);
+        int totalSeats = parsePositiveInt(eventPrice, Math.max(availableSeats, 1));
+
+        currentEvent = new Event(
+                eventId,
+                eventTitle != null ? eventTitle : "",
+                "",
+                eventLocation != null ? eventLocation : "",
+                new java.util.Date(),
+                totalSeats,
+                availableSeats,
+                EventCategory.MOVIE,
+                st);
+
+        if (st == EventStatus.CANCELLED) {
+            confirmBtn.setText("Event Cancelled");
+            confirmBtn.setEnabled(false);
+        } else if (availableSeats <= 0 || st == EventStatus.SOLDOUT) {
+            confirmBtn.setText("Sold Out");
+            confirmBtn.setEnabled(false);
+        } else {
+            confirmBtn.setText("Confirm Booking – $" + eventPrice);
+            confirmBtn.setEnabled(true);
+        }
+    }
+
+    private static int parsePositiveInt(String raw, int fallback) {
+        if (raw == null || raw.isEmpty()) {
+            return fallback;
+        }
+        try {
+            int v = Integer.parseInt(raw.trim());
+            return v > 0 ? v : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     /**
