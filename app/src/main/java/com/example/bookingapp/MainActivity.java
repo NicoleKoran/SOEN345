@@ -103,8 +103,30 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new EventAdapter(
                 filteredEvents,
-                event -> Toast.makeText(this, "Booking: " + event.getTitle(), Toast.LENGTH_SHORT).show(),
                 event -> {
+                    // format the event date
+                    String formattedDate = "Date TBD";
+                    if (event.getDate() != null) {
+                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat(
+                                "MMM dd, yyyy 'at' h:mm a", java.util.Locale.getDefault());
+                        formattedDate = sdf.format(event.getDate());
+                    }
+
+                    // Launch BookingActivity pass all event details as extras
+                    // BookingActivity unpacks these to show the booking screen
+                    Intent intent = new Intent(MainActivity.this, BookingActivity.class);
+                    intent.putExtra("eventId",        event.getEventId());
+                    intent.putExtra("eventTitle",     event.getTitle());
+                    intent.putExtra("eventLocation",  event.getLocation());
+                    intent.putExtra("eventDate",      formattedDate);
+                    intent.putExtra("eventPrice",     String.valueOf(event.getTotalSeats()));
+                    intent.putExtra("eventStatus",    event.getStatus() != null
+                            ? event.getStatus() : "available");
+                    intent.putExtra("availableSeats", event.getAvailableSeats());
+                    startActivity(intent);
+                },
+                event -> {
+                    // ADMIN edit button
                     Intent intent = new Intent(MainActivity.this, AdminActivity.class);
                     intent.putExtra("event_id", event.getEventId());
                     startActivity(intent);

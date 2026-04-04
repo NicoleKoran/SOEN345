@@ -220,22 +220,35 @@ public class MainActivityTest {
         assertTrue(shadowOf(dialog).getMessage().toString().contains("Jazz Night"));
         assertFalse(preferences.contains(MainActivity.KEY_PENDING_DELETE_EVENT_NAME));
     }
-
+//Modified nonAdminEventCard_bookButtonShowsToast to test the Booking activity--for it to pass the tests
     @Test
-    public void nonAdminEventCard_bookButtonShowsToast() {
+    public void nonAdminEventCard_bookButtonLaunchesBookingActivity() {
+        // Setup: build the activity and inject a fake event
         MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
-        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
+        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert",
+                dateAt(2026, Calendar.APRIL, 5));
         event.setAvailableSeats(40);
         activity.filteredEvents.clear();
         activity.filteredEvents.add(event);
         activity.adapter.setEvents(activity.filteredEvents);
 
+        // click the Book button
         android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
-        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder = activity.adapter.onCreateViewHolder(parent, 0);
+        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder =
+                activity.adapter.onCreateViewHolder(parent, 0);
         activity.adapter.onBindViewHolder(holder, 0);
         holder.itemView.findViewById(R.id.bookButton).performClick();
 
-        assertEquals("Booking: Jazz Night", ShadowToast.getTextOfLatestToast());
+        // Assert: BookingActivity was launched with the right event data
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull("Expected BookingActivity to be launched", next);
+        assertEquals(
+                BookingActivity.class.getName(),
+                next.getComponent().getClassName()
+        );
+        assertEquals("Jazz Night", next.getStringExtra("eventTitle"));
+        assertEquals("Montreal",   next.getStringExtra("eventLocation"));
+        assertEquals("1",          next.getStringExtra("eventId"));
     }
 
     @Test
@@ -421,6 +434,66 @@ public class MainActivityTest {
         MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
 
         assertEquals("fallback", invokePrivate(activity, "readString", Object.class, String.class, null, "fallback"));
+    }
+
+    @Test
+    public void readInt_numericString_returnsParsedValue() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        assertEquals(42, invokePrivate(activity, "readInt", Object.class, "42"));
+    }
+
+    @Test
+    public void readDate_javaUtilDate_returnsSameInstance() throws Exception {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Date d = new Date(999888777L);
+        assertEquals(d, invokePrivate(activity, "readDate", Object.class, d));
+    }
+
+    @Test
+    public void nonAdminBookButton_usesDateTbdWhenEventDateNull() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Event event = createListEvent("1", "No Date Show", "Montreal", "concert", null);
+        event.setAvailableSeats(12);
+        activity.filteredEvents.clear();
+        activity.filteredEvents.add(event);
+        activity.adapter.setEvents(activity.filteredEvents);
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
+        com.example.bookingapp.adapters.EventAdapter.ViewHolder holder =
+                activity.adapter.onCreateViewHolder(parent, 0);
+        activity.adapter.onBindViewHolder(holder, 0);
+        holder.itemView.findViewById(R.id.bookButton).performClick();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertTrue(next.getStringExtra("eventDate").contains("Date TBD"));
+    }
+
+    @Test
+    public void applyFilters_zeroResults_usesPluralEventsFound() throws Exception {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        activity.allEvents = new ArrayList<>();
+        activity.filteredEvents = new ArrayList<>();
+        invokePrivate(activity, "applyFilters");
+        assertEquals("0 events found", activity.resultsCount.getText().toString());
+    }
+
+    @Test
+    public void showPendingDeleteDialogIfNeeded_blankString_doesNothing() throws Exception {
+        SharedPreferences preferences = ApplicationProvider.getApplicationContext()
+                .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
+        preferences.edit().putString(MainActivity.KEY_PENDING_DELETE_EVENT_NAME, "   ").apply();
+
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+
+        invokePrivate(activity, "showPendingDeleteDialogIfNeeded");
+
+        assertNull(ShadowAlertDialog.getLatestAlertDialog());
+        assertEquals("   ", preferences.getString(MainActivity.KEY_PENDING_DELETE_EVENT_NAME, ""));
     }
 
     @Test
