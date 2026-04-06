@@ -1,7 +1,9 @@
 package com.example.bookingapp;
 
 import android.app.DatePickerDialog;
+import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
@@ -14,15 +16,17 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bookingapp.adapters.EventAdapter;
-import com.example.bookingapp.models.Event;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
+    public static final String EXTRA_IS_ADMIN = "extra_is_admin";
+    public static final String KEY_PENDING_DELETE_EVENT_NAME = "pending_delete_event_name";
 
     RecyclerView recyclerView;
     EventAdapter adapter;
@@ -38,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     String selectedCategory = null;
     Date selectedDate = null;
     String selectedLocation = null;
+    boolean isAdmin;
 
     final String[] CATEGORIES = {"All", "concert", "movie", "sport", "travel"};
 
@@ -45,10 +50,19 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        if (user == null) {
+        if (user == null && !isAdminSessionPersisted()) {
             startActivity(new Intent(this, LoginActivity.class));
             finish();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (adapter != null) {
+            loadEvents();
+        }
+        showPendingDeleteDialogIfNeeded();
     }
 
     @Override
@@ -58,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         db = FirebaseFirestore.getInstance();
         setContentView(R.layout.activity_main);
+        isAdmin = resolveAdminMode();
 
         recyclerView = findViewById(R.id.eventsRecyclerView);
         searchInput = findViewById(R.id.searchInput);
@@ -66,19 +81,58 @@ public class MainActivity extends AppCompatActivity {
         btnLocationFilter = findViewById(R.id.btnLocationFilter);
         btnClearFilters = findViewById(R.id.btnClearFilters);
         resultsCount = findViewById(R.id.resultsCount);
+        Button addEventBtn = findViewById(R.id.addEventBtn);
 
         Button logoutBtn = findViewById(R.id.logoutBtn);
         logoutBtn.setOnClickListener(v -> {
             FirebaseAuth.getInstance().signOut();
+            clearAdminSession();
             Intent intent = new Intent(MainActivity.this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
         });
 
+        if (isAdmin) {
+            addEventBtn.setVisibility(View.VISIBLE);
+            addEventBtn.setOnClickListener(v -> {
+                Intent intent = new Intent(MainActivity.this, AdminActivity.class);
+                startActivity(intent);
+            });
+        }
+
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new EventAdapter(filteredEvents, event -> {
-            Toast.makeText(this, "Booking: " + event.getTitle(), Toast.LENGTH_SHORT).show();
-        });
+        adapter = new EventAdapter(
+                filteredEvents,
+                event -> {
+                    // format the event date
+                    String formattedDate = "Date TBD";
+                    if (event.getDate() != null) {
+                        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat(
+                                "MMM dd, yyyy 'at' h:mm a", java.util.Locale.getDefault());
+                        formattedDate = sdf.format(event.getDate());
+                    }
+
+                    // Launch BookingActivity pass all event details as extras
+                    // BookingActivity unpacks these to show the booking screen
+                    Intent intent = new Intent(MainActivity.this, BookingActivity.class);
+                    intent.putExtra("eventId",        event.getEventId());
+                    intent.putExtra("eventTitle",     event.getTitle());
+                    intent.putExtra("eventLocation",  event.getLocation());
+                    intent.putExtra("eventDate",      formattedDate);
+                    intent.putExtra("eventPrice",     String.valueOf(event.getTotalSeats()));
+                    intent.putExtra("eventStatus",    event.getStatus() != null
+                            ? event.getStatus().toFirestoreValue() : "available");
+                    intent.putExtra("availableSeats", event.getAvailableSeats());
+                    startActivity(intent);
+                },
+                event -> {
+                    // ADMIN edit button
+                    Intent intent = new Intent(MainActivity.this, AdminActivity.class);
+                    intent.putExtra("event_id", event.getEventId());
+                    startActivity(intent);
+                },
+                isAdmin
+        );
         recyclerView.setAdapter(adapter);
 
         setupCategoryChips();
@@ -202,12 +256,12 @@ public class MainActivity extends AppCompatActivity {
             if (!query.isEmpty()) {
                 boolean matchesSearch = (e.getTitle() != null && e.getTitle().toLowerCase().contains(query))
                         || (e.getLocation() != null && e.getLocation().toLowerCase().contains(query))
-                        || (e.getCategory() != null && e.getCategory().toLowerCase().contains(query));
+                        || (e.getCategory() != null && e.getCategory().toFirestoreValue().toLowerCase().contains(query));
                 if (!matchesSearch) continue;
             }
             // Category filter
             if (selectedCategory != null && e.getCategory() != null &&
-                    !selectedCategory.equalsIgnoreCase(e.getCategory())) continue;
+                    !selectedCategory.equalsIgnoreCase(e.getCategory().toFirestoreValue())) continue;
             if (selectedDate != null && e.getDate() != null) {
                 Calendar selCal = Calendar.getInstance(); selCal.setTime(selectedDate);
                 Calendar evCal = Calendar.getInstance(); evCal.setTime(e.getDate());
@@ -235,10 +289,92 @@ public class MainActivity extends AppCompatActivity {
         db.collection("events").get().addOnSuccessListener(snap -> {
             allEvents.clear();
             for (DocumentSnapshot doc : snap) {
-                Event event = doc.toObject(Event.class);
+                Event event = toListEvent(doc);
                 if (event != null) allEvents.add(event);
             }
             applyFilters();
         });
+    }
+
+    private Event toListEvent(DocumentSnapshot doc) {
+        Map<String, Object> data = doc.getData();
+        if (data == null) {
+            return null;
+        }
+
+        Event event = new Event();
+        event.setEventId(readString(data.get("eventId"), doc.getId()));
+        event.setTitle(readString(data.get("title"), ""));
+        event.setDescription(readString(data.get("description"), ""));
+        event.setLocation(readString(data.get("location"), ""));
+        event.setCategory(readString(data.get("category"), "movie"));
+        event.setStatus(readString(data.get("status"), "available"));
+        event.setDate(readDate(data.get("date")));
+        event.setTotalSeats(readInt(data.get("totalSeats")));
+        event.setAvailableSeats(readInt(data.get("availableSeats")));
+        return event;
+    }
+
+    private String readString(Object value, String fallback) {
+        return value == null ? fallback : String.valueOf(value);
+    }
+
+    private int readInt(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return value == null ? 0 : Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private Date readDate(Object value) {
+        if (value instanceof Timestamp) {
+            return ((Timestamp) value).toDate();
+        }
+        if (value instanceof Date) {
+            return (Date) value;
+        }
+        return new Date();
+    }
+
+    private boolean resolveAdminMode() {
+        boolean adminFromIntent = getIntent().getBooleanExtra(EXTRA_IS_ADMIN, false);
+        SharedPreferences preferences = getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean persistedAdmin = preferences.getBoolean(LoginActivity.KEY_ADMIN_MODE, false);
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        boolean firebaseAdmin = user != null && LoginActivity.ADMIN_EMAIL.equalsIgnoreCase(user.getEmail());
+        boolean admin = adminFromIntent || persistedAdmin || firebaseAdmin;
+        preferences.edit().putBoolean(LoginActivity.KEY_ADMIN_MODE, admin).apply();
+        return admin;
+    }
+
+    private boolean isAdminSessionPersisted() {
+        return getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE)
+                .getBoolean(LoginActivity.KEY_ADMIN_MODE, false);
+    }
+
+    private void clearAdminSession() {
+        getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putBoolean(LoginActivity.KEY_ADMIN_MODE, false)
+                .apply();
+    }
+
+    private void showPendingDeleteDialogIfNeeded() {
+        SharedPreferences preferences = getSharedPreferences(LoginActivity.PREFS_NAME, MODE_PRIVATE);
+        String deletedEventName = preferences.getString(KEY_PENDING_DELETE_EVENT_NAME, null);
+        if (deletedEventName == null || deletedEventName.trim().isEmpty()) {
+            return;
+        }
+
+        preferences.edit().remove(KEY_PENDING_DELETE_EVENT_NAME).apply();
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.event_deleted_title)
+                .setMessage(getString(R.string.event_deleted_message, deletedEventName))
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 }

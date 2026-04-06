@@ -76,7 +76,7 @@ public class HomeActivityTest {
             verify(mockAuth).signOut();
             ShadowApplication shadowApp = ShadowApplication.getInstance();
             assertTrue(
-                    shadowApp.getNextStartedActivity().getComponent().getClassName().contains("LoginActivity"));
+                    shadowApp.getNextStartedActivity().getComponent().getClassName().contains("MainActivity"));
         }
     }
 }

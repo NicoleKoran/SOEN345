@@ -1,130 +1,150 @@
 package com.example.bookingapp;
-import com.example.bookingapp.models.Event;
 
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+import org.junit.jupiter.api.Test;
+
 import java.util.Date;
-import static org.junit.Assert.*;
 
-public class EventTest {
-    private Event event;
-    private Date testDate;
+class EventTest {
 
-    @Before
-    public void setUp(){
-        event = new Event("E001", "Daniel Caesar Concert", testDate, "Montreal", "XXX", Event.EventCategory.concert, 200, 100, Event.EventStatus.available, 150);
+    @Test
+    void constructor_setsAllAdminEventFields() {
+        Date date = new Date();
+        Event event = new Event(
+                "event-123",
+                "Admin Managed Event",
+                "Description",
+                "Montreal",
+                date,
+                250,
+                100,
+                EventCategory.SPORT,
+                EventStatus.AVAILABLE
+        );
+
+        assertEquals("event-123", event.getEventId());
+        assertEquals("Admin Managed Event", event.getTitle());
+        assertEquals("Description", event.getDescription());
+        assertEquals("Montreal", event.getLocation());
+        assertEquals(date, event.getDate());
+        assertEquals(250, event.getTotalSeats());
+        assertEquals(100, event.getAvailableSeats());
+        assertEquals(EventCategory.SPORT, event.getCategory());
+        assertEquals(EventStatus.AVAILABLE, event.getStatus());
     }
 
     @Test
-    public void constructorSetupTest(){
-        assertEquals(event.getEventId(), "E001");
-        assertEquals(event.getTitle(), "Daniel Caesar Concert");
-        assertEquals(event.getDate(), testDate);
-        assertEquals(event.getLocation(), "Montreal");
-        assertEquals(event.getDescription(), "XXX");
-        assertEquals("concert", event.getCategory());
-        assertEquals(event.getTotalSeats(), 200);
-        assertEquals(event.getAvailableSeats(), 100);
-        assertEquals("available", event.getStatus());
-        assertEquals(event.getPrice(), 150);
+    void setEventId_updatesEventId() {
+        Event event = new Event(
+                "old-id",
+                "Event",
+                "Description",
+                "Toronto",
+                new Date(),
+                10,
+                5,
+                EventCategory.MOVIE,
+                EventStatus.AVAILABLE
+        );
+
+        event.setEventId("new-id");
+
+        assertEquals("new-id", event.getEventId());
     }
 
     @Test
-    public void setTitleTest(){
-        event.setTitle("DC Concert");
-        assertEquals(event.getTitle(), "DC Concert");
+    void constructor_preservesNullAndZeroValues() {
+        Event event = new Event(
+                null,
+                "",
+                null,
+                null,
+                null,
+                0,
+                0,
+                null,
+                null
+        );
+
+        assertEquals(null, event.getEventId());
+        assertEquals("", event.getTitle());
+        assertEquals(null, event.getDescription());
+        assertEquals(null, event.getLocation());
+        assertEquals(null, event.getDate());
+        assertEquals(0, event.getTotalSeats());
+        assertEquals(0, event.getAvailableSeats());
+        assertEquals(null, event.getCategory());
+        assertEquals(null, event.getStatus());
     }
 
     @Test
-    public void setDateTest(){
-        Date newDate = new Date();
-        event.setDate(newDate);
-        assertEquals(event.getDate(), newDate);
+    void setEventId_acceptsEmptyString() {
+        Event event = new Event(
+                "existing-id",
+                "Event",
+                "Description",
+                "Toronto",
+                new Date(),
+                10,
+                5,
+                EventCategory.MOVIE,
+                EventStatus.AVAILABLE
+        );
+
+        event.setEventId("");
+
+        assertEquals("", event.getEventId());
     }
 
     @Test
-    public void setLocationTest(){
-        event.setLocation("NYC");
-        assertEquals(event.getLocation(), "NYC");
-    }
+    void defaultConstructorAndSettersPopulateListFlowFields() {
+        Date date = new Date(1775452380000L);
+        Event event = new Event();
 
-    @Test
-    public void setDescriptionTest(){
-        event.setDescription("000");
-        assertEquals(event.getDescription(), "000");
-    }
-
-    @Test
-    public void getCategoryEnum_returnsCorrectEnum_forValidCategory() {
-        assertEquals(Event.EventCategory.concert, event.getCategoryEnum());
-    }
-
-    @Test
-    public void getCategoryEnum_returnsNull_whenCategoryIsNull() {
-        event.setCategory(null);
-        assertNull(event.getCategoryEnum());
-    }
-
-    @Test
-    public void getCategoryEnum_returnsNull_forUnknownCategory() {
-        event.setCategory("unknown_category");
-        assertNull(event.getCategoryEnum());
-    }
-
-    @Test
-    public void getCategoryEnum_handlesAllValidCategories() {
-        for (Event.EventCategory cat : Event.EventCategory.values()) {
-            event.setCategoryEnum(cat);
-            assertEquals(cat, event.getCategoryEnum());
-        }
-    }
-
-    @Test
-    public void setCategoryEnum_storesCategoryAsString() {
-        event.setCategoryEnum(Event.EventCategory.travel);
-        assertEquals("travel", event.getCategory());
-    }
-
-    @Test
-    public void getStatusEnum_returnsCorrectEnum_forValidStatus() {
-        assertEquals(Event.EventStatus.available, event.getStatusEnum());
-    }
-
-    @Test
-    public void getStatusEnum_returnsNull_whenStatusIsNull() {
-        event.setStatus(null);
-        assertNull(event.getStatusEnum());
-    }
-
-    @Test
-    public void getStatusEnum_returnsNull_forUnknownStatus() {
-        event.setStatus("invalid_status");
-        assertNull(event.getStatusEnum());
-    }
-
-    @Test
-    public void getStatusEnum_handlesAllValidStatuses() {
-        for (Event.EventStatus status : Event.EventStatus.values()) {
-            event.setStatusEnum(status);
-            assertEquals(status, event.getStatusEnum());
-        }
-    }
-
-    @Test
-    public void setTotalSeatsTest(){
-        event.setTotalSeats(400);
-        assertEquals(event.getTotalSeats(), 400);
-    }
-
-    @Test
-    public void setAvailableSeatsTest(){
-        event.setAvailableSeats(300);
-        assertEquals(event.getAvailableSeats(), 300);
-    }
-    @Test
-    public void setPriceTest(){
+        event.setEventId("event-1");
+        event.setTitle("Jazz Night");
+        event.setDate(date);
+        event.setLocation("Montreal");
+        event.setDescription("Live music");
+        event.setCategory(EventCategory.CONCERT);
+        event.setStatus(EventStatus.AVAILABLE);
+        event.setTotalSeats(200);
+        event.setAvailableSeats(40);
         event.setPrice(25);
-        assertEquals(event.getPrice(), 25);
+
+        assertEquals("event-1", event.getEventId());
+        assertEquals("Jazz Night", event.getTitle());
+        assertEquals(date, event.getDate());
+        assertEquals("Montreal", event.getLocation());
+        assertEquals("Live music", event.getDescription());
+        assertEquals(EventCategory.CONCERT, event.getCategory());
+        assertEquals(EventStatus.AVAILABLE, event.getStatus());
+        assertEquals(25, event.getPrice());
     }
 
+    @Test
+    void stringSettersAndEnumHelpersStayConsistent() {
+        Event event = new Event();
+        event.setCategory("travel");
+        event.setStatus("cancelled");
+
+        assertEquals(EventCategory.TRAVEL, event.getCategory());
+        assertEquals(EventStatus.CANCELLED, event.getStatus());
+        assertEquals(EventCategory.TRAVEL, event.getCategoryEnum());
+        assertEquals(EventStatus.CANCELLED, event.getStatusEnum());
+
+        event.setCategory(null);
+        event.setStatus(null);
+
+        assertNull(event.getCategory());
+        assertNull(event.getStatus());
+
+        event.setCategory("invalid");
+        event.setStatus("unknown");
+
+        assertNull(event.getCategory());
+        assertNull(event.getStatus());
+    }
 }

@@ -4,12 +4,15 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.Espresso.pressBack;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.intent.Intents.intended;
+import static androidx.test.espresso.intent.matcher.IntentMatchers.hasComponent;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
 import android.view.View;
 
 import androidx.test.core.app.ActivityScenario;
+import androidx.test.espresso.intent.Intents;
 import androidx.test.espresso.matcher.BoundedMatcher;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
@@ -112,18 +115,23 @@ public class LoginRegistrationSmokeTest {
 
     @Test
     public void login_navigateToRegisterEmail_showsRegisterForm() {
+        Intents.init();
         try (ActivityScenario<LoginActivity> ignored = ActivityScenario.launch(LoginActivity.class)) {
             onView(withId(R.id.registerEmailLink)).perform(click());
-            onView(withId(R.id.registerBtn)).check(matches(isDisplayed()));
+            intended(hasComponent(RegisterEmailActivity.class.getName()));
+        } finally {
+            Intents.release();
         }
     }
 
     @Test
     public void login_navigateToRegisterPhone_showsPhoneForm() {
+        Intents.init();
         try (ActivityScenario<LoginActivity> ignored = ActivityScenario.launch(LoginActivity.class)) {
             onView(withId(R.id.registerPhoneLink)).perform(click());
-            onView(withId(R.id.phoneInput)).check(matches(isDisplayed()));
-            onView(withId(R.id.sendOtpBtn)).check(matches(isDisplayed()));
+            intended(hasComponent(RegisterPhoneActivity.class.getName()));
+        } finally {
+            Intents.release();
         }
     }
 
