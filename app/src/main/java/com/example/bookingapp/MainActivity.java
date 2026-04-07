@@ -16,7 +16,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bookingapp.adapters.EventAdapter;
-import com.example.bookingapp.models.Event;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.Timestamp;
@@ -33,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     EventAdapter adapter;
     List<Event> allEvents = new ArrayList<>();
     List<Event> filteredEvents = new ArrayList<>();
-    FirebaseFirestore db = FirebaseFirestore.getInstance();
+    FirebaseFirestore db;
 
     EditText searchInput;
     LinearLayout filterChipsContainer;
@@ -71,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         super.onCreate(savedInstanceState);
+        db = FirebaseFirestore.getInstance();
         setContentView(R.layout.activity_main);
         isAdmin = resolveAdminMode();
 
@@ -121,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
                     intent.putExtra("eventDate",      formattedDate);
                     intent.putExtra("eventPrice",     String.valueOf(event.getTotalSeats()));
                     intent.putExtra("eventStatus",    event.getStatus() != null
-                            ? event.getStatus() : "available");
+                            ? event.getStatus().toFirestoreValue() : "available");
                     intent.putExtra("availableSeats", event.getAvailableSeats());
                     startActivity(intent);
                 },
@@ -256,12 +256,12 @@ public class MainActivity extends AppCompatActivity {
             if (!query.isEmpty()) {
                 boolean matchesSearch = (e.getTitle() != null && e.getTitle().toLowerCase().contains(query))
                         || (e.getLocation() != null && e.getLocation().toLowerCase().contains(query))
-                        || (e.getCategory() != null && e.getCategory().toLowerCase().contains(query));
+                        || (e.getCategory() != null && e.getCategory().toFirestoreValue().toLowerCase().contains(query));
                 if (!matchesSearch) continue;
             }
             // Category filter
             if (selectedCategory != null && e.getCategory() != null &&
-                    !selectedCategory.equalsIgnoreCase(e.getCategory())) continue;
+                    !selectedCategory.equalsIgnoreCase(e.getCategory().toFirestoreValue())) continue;
             if (selectedDate != null && e.getDate() != null) {
                 Calendar selCal = Calendar.getInstance(); selCal.setTime(selectedDate);
                 Calendar evCal = Calendar.getInstance(); evCal.setTime(e.getDate());
@@ -292,7 +292,7 @@ public class MainActivity extends AppCompatActivity {
                 Event event = toListEvent(doc);
                 if (event != null) allEvents.add(event);
             }
-            applyFilters(); 
+            applyFilters();
         });
     }
 

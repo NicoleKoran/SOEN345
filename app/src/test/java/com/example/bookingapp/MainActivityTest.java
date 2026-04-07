@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
+import org.mockito.MockedStatic;
 import static org.robolectric.Shadows.shadowOf;
 
 import android.app.AlertDialog;
@@ -20,11 +21,10 @@ import android.widget.EditText;
 
 import androidx.test.core.app.ApplicationProvider;
 
-import com.example.bookingapp.models.Event;
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
 
 import org.junit.Before;
@@ -32,9 +32,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowAlertDialog;
 import org.robolectric.shadows.ShadowApplication;
-import org.robolectric.shadows.ShadowToast;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -42,14 +42,20 @@ import java.util.Calendar;
 import java.util.Date;
 
 @RunWith(RobolectricTestRunner.class)
+@Config(sdk = 33)
 public class MainActivityTest {
+
+    private MainActivity activity;
 
     @Before
     public void setUp() {
-        FirebaseApp.initializeApp(ApplicationProvider.getApplicationContext());
+        if (FirebaseApp.getApps(ApplicationProvider.getApplicationContext()).isEmpty()) {
+            FirebaseApp.initializeApp(ApplicationProvider.getApplicationContext());
+        }
         SharedPreferences preferences = ApplicationProvider.getApplicationContext()
                 .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE);
         preferences.edit().clear().apply();
+        activity = Robolectric.buildActivity(MainActivity.class).create().get();
     }
 
     @Test
@@ -100,14 +106,12 @@ public class MainActivityTest {
         Intent next = ShadowApplication.getInstance().getNextStartedActivity();
         assertNotNull(next);
         assertEquals(LoginActivity.class.getName(), next.getComponent().getClassName());
-        assertTrue(!preferences.getBoolean(LoginActivity.KEY_ADMIN_MODE, false));
+        assertFalse(preferences.getBoolean(LoginActivity.KEY_ADMIN_MODE, false));
     }
 
     @Test
     public void onCreate_nonAdmin_hidesAddEventButton() {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
         Button addEventButton = activity.findViewById(R.id.addEventBtn);
-
         assertEquals(View.GONE, addEventButton.getVisibility());
     }
 
@@ -159,9 +163,9 @@ public class MainActivityTest {
         activity.findViewById(R.id.btnClearFilters).performClick();
 
         assertEquals("", activity.searchInput.getText().toString());
-        assertEquals(null, activity.selectedCategory);
-        assertEquals(null, activity.selectedLocation);
-        assertEquals(null, activity.selectedDate);
+        assertNull(activity.selectedCategory);
+        assertNull(activity.selectedLocation);
+        assertNull(activity.selectedDate);
         assertEquals("Any Date", activity.btnDateFilter.getText().toString());
         assertEquals("Any Location", activity.btnLocationFilter.getText().toString());
         assertEquals(View.GONE, activity.btnClearFilters.getVisibility());
@@ -192,8 +196,8 @@ public class MainActivityTest {
         assertEquals("doc-1", event.getEventId());
         assertEquals("Movie Night", event.getTitle());
         assertEquals("Montreal", event.getLocation());
-        assertEquals("movie", event.getCategory());
-        assertEquals("available", event.getStatus());
+        assertEquals(EventCategory.MOVIE, event.getCategory());
+        assertEquals(EventStatus.AVAILABLE, event.getStatus());
         assertEquals(120, event.getTotalSeats());
         assertEquals(75, event.getAvailableSeats());
         assertEquals(date, event.getDate());
@@ -211,44 +215,34 @@ public class MainActivityTest {
 
         invokePrivate(activity, "showPendingDeleteDialogIfNeeded");
 
-        android.app.AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
         assertNotNull(dialog);
-        assertEquals(
-                activity.getString(R.string.event_deleted_title),
-                shadowOf(dialog).getTitle().toString()
-        );
+        assertEquals(activity.getString(R.string.event_deleted_title), shadowOf(dialog).getTitle().toString());
         assertTrue(shadowOf(dialog).getMessage().toString().contains("Jazz Night"));
         assertFalse(preferences.contains(MainActivity.KEY_PENDING_DELETE_EVENT_NAME));
     }
-//Modified nonAdminEventCard_bookButtonShowsToast to test the Booking activity--for it to pass the tests
+
     @Test
     public void nonAdminEventCard_bookButtonLaunchesBookingActivity() {
-        // Setup: build the activity and inject a fake event
         MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
-        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert",
-                dateAt(2026, Calendar.APRIL, 5));
+        Event event = createListEvent("1", "Jazz Night", "Montreal", "concert", dateAt(2026, Calendar.APRIL, 5));
         event.setAvailableSeats(40);
         activity.filteredEvents.clear();
         activity.filteredEvents.add(event);
         activity.adapter.setEvents(activity.filteredEvents);
 
-        // click the Book button
         android.widget.FrameLayout parent = new android.widget.FrameLayout(activity);
         com.example.bookingapp.adapters.EventAdapter.ViewHolder holder =
                 activity.adapter.onCreateViewHolder(parent, 0);
         activity.adapter.onBindViewHolder(holder, 0);
         holder.itemView.findViewById(R.id.bookButton).performClick();
 
-        // Assert: BookingActivity was launched with the right event data
         Intent next = ShadowApplication.getInstance().getNextStartedActivity();
-        assertNotNull("Expected BookingActivity to be launched", next);
-        assertEquals(
-                BookingActivity.class.getName(),
-                next.getComponent().getClassName()
-        );
+        assertNotNull(next);
+        assertEquals(BookingActivity.class.getName(), next.getComponent().getClassName());
         assertEquals("Jazz Night", next.getStringExtra("eventTitle"));
-        assertEquals("Montreal",   next.getStringExtra("eventLocation"));
-        assertEquals("1",          next.getStringExtra("eventId"));
+        assertEquals("Montreal", next.getStringExtra("eventLocation"));
+        assertEquals("1", next.getStringExtra("eventId"));
     }
 
     @Test
@@ -302,8 +296,8 @@ public class MainActivityTest {
 
         AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
         assertTrue(dialog instanceof DatePickerDialog);
-        android.app.DatePickerDialog.OnDateSetListener listener =
-                (android.app.DatePickerDialog.OnDateSetListener) readField(dialog, "mDateSetListener");
+        DatePickerDialog.OnDateSetListener listener =
+                (DatePickerDialog.OnDateSetListener) readField(dialog, "mDateSetListener");
         listener.onDateSet(null, 2026, Calendar.APRIL, 5);
 
         assertEquals("2026-4-5", activity.btnDateFilter.getText().toString());
@@ -332,7 +326,7 @@ public class MainActivityTest {
         dialog = ShadowAlertDialog.getLatestAlertDialog();
         shadowOf(dialog).clickOnItem(0);
 
-        assertEquals(null, activity.selectedLocation);
+        assertNull(activity.selectedLocation);
         assertEquals("Any Location", activity.btnLocationFilter.getText().toString());
     }
 
@@ -368,7 +362,7 @@ public class MainActivityTest {
 
         invokePrivate(activity, "showPendingDeleteDialogIfNeeded");
 
-        assertEquals(null, ShadowAlertDialog.getLatestAlertDialog());
+        assertNull(ShadowAlertDialog.getLatestAlertDialog());
     }
 
     @Test
@@ -381,22 +375,18 @@ public class MainActivityTest {
 
         Object result = invokePrivate(activity, "toListEvent", DocumentSnapshot.class, doc);
 
-        assertEquals(null, result);
+        assertNull(result);
     }
 
     @Test
     public void readInt_handlesInvalidStringAndNull() throws Exception {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
-
         assertEquals(0, invokePrivate(activity, "readInt", Object.class, "abc"));
         assertEquals(0, invokePrivate(activity, "readInt", Object.class, null));
     }
 
     @Test
     public void readDate_returnsFallbackForInvalidValue() throws Exception {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
         Object value = invokePrivate(activity, "readDate", Object.class, "invalid");
-
         assertTrue(value instanceof Date);
     }
 
@@ -419,7 +409,7 @@ public class MainActivityTest {
         FirebaseAuth auth = mock(FirebaseAuth.class);
         when(auth.getCurrentUser()).thenReturn(user);
 
-        try (var authMock = mockStatic(FirebaseAuth.class)) {
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class)) {
             authMock.when(FirebaseAuth::getInstance).thenReturn(auth);
             MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
 
@@ -430,28 +420,82 @@ public class MainActivityTest {
     }
 
     @Test
-    public void readString_returnsFallbackWhenValueIsNull() throws Exception {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+    public void clearFiltersButtonHiddenByDefaultTest() {
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        assertEquals(View.GONE, clearBtn.getVisibility());
+    }
 
+    @Test
+    public void searchInputIsEmptyByDefaultTest() {
+        EditText search = activity.findViewById(R.id.searchInput);
+        assertEquals("", search.getText().toString());
+    }
+
+    @Test
+    public void dateFilterButtonshowsDefaultText() {
+        Button dateBtn = activity.findViewById(R.id.btnDateFilter);
+        assertEquals("Any Date", dateBtn.getText().toString());
+    }
+
+    @Test
+    public void locationFilterButtonshowsDefaultText() {
+        Button locationBtn = activity.findViewById(R.id.btnLocationFilter);
+        assertEquals("Any Location", locationBtn.getText().toString());
+    }
+
+    @Test
+    public void typingInSearchMakesClearFiltersVisibleTest() {
+        EditText search = activity.findViewById(R.id.searchInput);
+        search.setText("jazz");
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.btnClearFilters).getVisibility());
+    }
+
+    @Test
+    public void clearFiltersHidesItselfTest() {
+        ((EditText) activity.findViewById(R.id.searchInput)).setText("x");
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        clearBtn.performClick();
+        assertEquals(View.GONE, clearBtn.getVisibility());
+    }
+
+    @Test
+    public void clearFiltersResetsDateButtonText() {
+        Button dateBtn = activity.findViewById(R.id.btnDateFilter);
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        dateBtn.setText("2025-6-15");
+        clearBtn.setVisibility(View.VISIBLE);
+        clearBtn.performClick();
+        assertEquals("Any Date", dateBtn.getText().toString());
+    }
+
+    @Test
+    public void clearFiltersResetsLocationButtonText() {
+        Button locationBtn = activity.findViewById(R.id.btnLocationFilter);
+        Button clearBtn = activity.findViewById(R.id.btnClearFilters);
+        locationBtn.setText("Montreal");
+        clearBtn.setVisibility(View.VISIBLE);
+        clearBtn.performClick();
+        assertEquals("Any Location", locationBtn.getText().toString());
+    }
+
+    @Test
+    public void readString_returnsFallbackWhenValueIsNull() throws Exception {
         assertEquals("fallback", invokePrivate(activity, "readString", Object.class, String.class, null, "fallback"));
     }
 
     @Test
     public void readInt_numericString_returnsParsedValue() throws Exception {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
         assertEquals(42, invokePrivate(activity, "readInt", Object.class, "42"));
     }
 
     @Test
     public void readDate_javaUtilDate_returnsSameInstance() throws Exception {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
         Date d = new Date(999888777L);
         assertEquals(d, invokePrivate(activity, "readDate", Object.class, d));
     }
 
     @Test
     public void nonAdminBookButton_usesDateTbdWhenEventDateNull() {
-        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
         Event event = createListEvent("1", "No Date Show", "Montreal", "concert", null);
         event.setAvailableSeats(12);
         activity.filteredEvents.clear();
@@ -509,12 +553,18 @@ public class MainActivityTest {
         assertNull(activity.selectedCategory);
     }
 
-    private Event createListEvent(String id, String title, String location, String category, Date date) {
+    private Event createListEvent(
+            String id,
+            String title,
+            String location,
+            String category,
+            Date date
+    ) {
         Event event = new Event();
         event.setEventId(id);
         event.setTitle(title);
         event.setLocation(location);
-        event.setCategory(category);
+        event.setCategory(EventCategory.fromValue(category));
         event.setDate(date);
         return event;
     }
