@@ -1,6 +1,7 @@
 package com.example.bookingapp;
 
 import android.app.AlertDialog;
+import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,6 +18,8 @@ import com.google.firebase.auth.FirebaseUser;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -26,13 +29,22 @@ import java.util.Locale;
  */
 public class MyReservationsActivity extends AppCompatActivity {
 
+    /**
+     * Debuggable-build only: when set on the launch intent, skips the Firestore fetch
+     * and populates the list with two hard-coded test reservations so E2E tests can
+     * exercise the full UI without backend data.
+     */
+    public static final String EXTRA_INSTRUMENTATION_PREFILL =
+            "com.example.bookingapp.INSTRUMENTATION_MY_RESERVATIONS_PREFILL";
+
     private RecyclerView recyclerView;
     private TextView emptyText;
     private TextView statusText;
     private ReservationsAdapter adapter;
 
-    private EventRepository eventRepository;
-    private BookingRepository bookingRepository;
+    // Package-private so instrumentation tests can inject fakes via scenario.onActivity()
+    EventRepository eventRepository;
+    BookingRepository bookingRepository;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,7 +68,17 @@ public class MyReservationsActivity extends AppCompatActivity {
         loadReservations();
     }
 
+    private boolean isDebuggableBuild() {
+        return (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
     private void loadReservations() {
+        // ── Instrumentation / debug fast-path ─────────────────────────────────
+        if (isDebuggableBuild() && getIntent().getBooleanExtra(EXTRA_INSTRUMENTATION_PREFILL, false)) {
+            loadInstrumentationReservations();
+            return;
+        }
+
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) {
             showStatus("You must be logged in to view reservations.");
@@ -126,6 +148,31 @@ public class MyReservationsActivity extends AppCompatActivity {
                         showStatus("Could not cancel: " + errorMessage);
                     }
                 });
+    }
+
+    /**
+     * Populates the list with two deterministic test reservations (one CONFIRMED,
+     * one CANCELLED-by-user). Only called in debuggable builds when the
+     * {@link #EXTRA_INSTRUMENTATION_PREFILL} intent extra is present.
+     */
+    private void loadInstrumentationReservations() {
+        Reservation confirmed = new Reservation(
+                "test-evt-1", "concert", "test-uid", "test@example.com",
+                "Jazz Night", "Montreal", new Date(), 0);
+        confirmed.setReservationId("test-res-confirmed");
+        confirmed.setStatus(ReservationStatus.CONFIRMED.toFirestoreValue());
+
+        Reservation cancelled = new Reservation(
+                "test-evt-2", "movie", "test-uid", "test@example.com",
+                "Movie Night", "Toronto", new Date(), 0);
+        cancelled.setReservationId("test-res-cancelled");
+        cancelled.setStatus(ReservationStatus.CANCELLED.toFirestoreValue());
+        cancelled.setCancellationReason("user_cancelled");
+
+        List<Reservation> testData = Arrays.asList(confirmed, cancelled);
+        emptyText.setVisibility(View.GONE);
+        recyclerView.setVisibility(View.VISIBLE);
+        adapter.setReservations(testData);
     }
 
     private void showStatus(String message) {

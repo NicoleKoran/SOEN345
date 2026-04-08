@@ -72,6 +72,7 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation("androidx.test.espresso:espresso-intents:3.6.1")
+    androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1")
     androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
