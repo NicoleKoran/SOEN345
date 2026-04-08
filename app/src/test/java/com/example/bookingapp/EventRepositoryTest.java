@@ -635,6 +635,76 @@ public class EventRepositoryTest {
         assertEquals("confirmed query failed", callback.errorMessage);
     }
 
+    @Test
+    public void getReservationsForUser_nullReservationDate_sortedToEnd() {
+        // Tests the null-date comparator branches: a.getReservationDate()==null → return 1
+        // and b.getReservationDate()==null → return -1
+        Query query = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot withDate = mock(DocumentSnapshot.class);
+        DocumentSnapshot noDate = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("userId", "user-null-date")).thenReturn(query);
+        when(query.get()).thenReturn(Tasks.forResult(querySnapshot));
+
+        Reservation datedRes = new Reservation(
+                "evt-1", "movie", "user-null-date", "u@test.com",
+                "Show A", "MTL", new Date(5000L), 0);
+        datedRes.setReservationDate(new Date(5000L));
+
+        Reservation undatedRes = new Reservation(
+                "evt-2", "concert", "user-null-date", "u@test.com",
+                "Show B", "MTL", new Date(9000L), 0);
+        undatedRes.setReservationDate(null); // no reservationDate
+
+        when(withDate.getId()).thenReturn("res-dated");
+        when(withDate.toObject(Reservation.class)).thenReturn(datedRes);
+        when(noDate.getId()).thenReturn("res-undated");
+        when(noDate.toObject(Reservation.class)).thenReturn(undatedRes);
+        // Return undated first — sorting should push it to end
+        when(querySnapshot.getDocuments()).thenReturn(List.of(noDate, withDate));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getReservationsForUser("user-null-date", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(2, callback.reservations.size());
+        // Item with a date should come first (descending); null date goes last
+        assertEquals("res-dated", callback.reservations.get(0).getReservationId());
+        assertEquals("res-undated", callback.reservations.get(1).getReservationId());
+    }
+
+    @Test
+    public void getReservationsForUser_toObjectThrowsException_documentSkipped() {
+        Query query = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot throwing = mock(DocumentSnapshot.class);
+        DocumentSnapshot good = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("userId", "user-throws")).thenReturn(query);
+        when(query.get()).thenReturn(Tasks.forResult(querySnapshot));
+
+        // First doc throws on toObject
+        when(throwing.getId()).thenReturn("res-throws");
+        when(throwing.toObject(Reservation.class)).thenThrow(new RuntimeException("deserialization failed"));
+
+        Reservation goodRes = new Reservation(
+                "evt-1", "sport", "user-throws", "g@test.com",
+                "Good Show", "Toronto", new Date(), 0);
+        when(good.getId()).thenReturn("res-good");
+        when(good.toObject(Reservation.class)).thenReturn(goodRes);
+
+        when(querySnapshot.getDocuments()).thenReturn(List.of(throwing, good));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getReservationsForUser("user-throws", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        // Only the good document should be in the result
+        assertEquals(1, callback.reservations.size());
+        assertEquals("res-good", callback.reservations.get(0).getReservationId());
+    }
+
     // ── UserReservationsCallback interface ────────────────────────────────────
 
     @Test

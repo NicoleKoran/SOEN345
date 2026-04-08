@@ -3,7 +3,11 @@ package com.example.bookingapp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
+import android.app.AlertDialog;
 import android.view.View;
 import android.widget.TextView;
 
@@ -16,7 +20,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.shadows.ShadowAlertDialog;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Date;
 
 /**
@@ -201,6 +208,152 @@ public class MyReservationsActivityTest {
         assertEquals(2, adapter.getItemCount());
     }
 
+    // ── Adapter edge cases ─────────────────────────────────────────────────────
+
+    @Test
+    public void adapter_nullEventTitle_showsUnknownEvent() {
+        Reservation r = new Reservation();
+        r.setReservationId("res-1");
+        r.setStatus(ReservationStatus.PENDING.toFirestoreValue());
+        // eventTitle is null from empty constructor
+
+        MyReservationsActivity.ReservationsAdapter adapter =
+                new MyReservationsActivity.ReservationsAdapter(
+                        java.util.Collections.singletonList(r), reservation -> {});
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(
+                ApplicationProvider.getApplicationContext());
+        MyReservationsActivity.ReservationsAdapter.ViewHolder holder =
+                adapter.onCreateViewHolder(parent, 0);
+        adapter.onBindViewHolder(holder, 0);
+
+        TextView title = holder.itemView.findViewById(R.id.reservationEventTitle);
+        assertEquals("Unknown Event", title.getText().toString());
+    }
+
+    @Test
+    public void adapter_nullEventLocation_showsEmptyString() {
+        Reservation r = new Reservation();
+        r.setReservationId("res-1");
+        r.setStatus(ReservationStatus.PENDING.toFirestoreValue());
+        // eventLocation is null from empty constructor
+
+        MyReservationsActivity.ReservationsAdapter adapter =
+                new MyReservationsActivity.ReservationsAdapter(
+                        java.util.Collections.singletonList(r), reservation -> {});
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(
+                ApplicationProvider.getApplicationContext());
+        MyReservationsActivity.ReservationsAdapter.ViewHolder holder =
+                adapter.onCreateViewHolder(parent, 0);
+        adapter.onBindViewHolder(holder, 0);
+
+        TextView location = holder.itemView.findViewById(R.id.reservationLocation);
+        assertEquals("", location.getText().toString());
+    }
+
+    @Test
+    public void adapter_cancelButton_click_invokesListener() {
+        Reservation r = buildReservation(ReservationStatus.CONFIRMED.toFirestoreValue(), null);
+        final boolean[] listenerCalled = {false};
+
+        MyReservationsActivity.ReservationsAdapter adapter =
+                new MyReservationsActivity.ReservationsAdapter(
+                        java.util.Collections.singletonList(r),
+                        reservation -> listenerCalled[0] = true);
+
+        android.widget.FrameLayout parent = new android.widget.FrameLayout(
+                ApplicationProvider.getApplicationContext());
+        MyReservationsActivity.ReservationsAdapter.ViewHolder holder =
+                adapter.onCreateViewHolder(parent, 0);
+        adapter.onBindViewHolder(holder, 0);
+
+        holder.itemView.findViewById(R.id.cancelReservationBtn).performClick();
+        assertTrue(listenerCalled[0]);
+    }
+
+    // ── onCancelClicked (private) ──────────────────────────────────────────────
+
+    @Test
+    public void onCancelClicked_alreadyCancelledReservation_showsStatusMessage() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        Reservation r = buildReservation(ReservationStatus.CANCELLED.toFirestoreValue(), "user_cancelled");
+        invokePrivate(activity, "onCancelClicked", Reservation.class, r);
+
+        TextView statusText = activity.findViewById(R.id.myReservationsStatus);
+        assertEquals(View.VISIBLE, statusText.getVisibility());
+        assertTrue(statusText.getText().toString().toLowerCase().contains("already cancelled"));
+    }
+
+    @Test
+    public void onCancelClicked_confirmedReservation_showsConfirmationDialog() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        Reservation r = buildReservation(ReservationStatus.CONFIRMED.toFirestoreValue(), null);
+        invokePrivate(activity, "onCancelClicked", Reservation.class, r);
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    // ── doCancel (private) ─────────────────────────────────────────────────────
+
+    @Test
+    public void doCancel_onSuccess_callsCancelReservationAndShowsStatus() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        doAnswer(inv -> {
+            BookingRepository.SimpleCallback cb = inv.getArgument(6);
+            cb.onSuccess("Reservation cancelled successfully.");
+            return null;
+        }).when(mockRepo).cancelReservation(any(), any(), any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+
+        setField(activity, "bookingRepository", mockRepo);
+
+        Reservation r = buildReservation(ReservationStatus.CONFIRMED.toFirestoreValue(), null);
+        invokePrivate(activity, "doCancel", Reservation.class, r);
+
+        // Verify cancelReservation was called with the correct reservation id
+        org.mockito.Mockito.verify(mockRepo).cancelReservation(
+                org.mockito.ArgumentMatchers.eq("res-test"),
+                any(), any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+        // statusText is visible — may show "logged in" because loadReservations
+        // runs after and finds no user in the test environment, but that's fine.
+        TextView statusText = activity.findViewById(R.id.myReservationsStatus);
+        assertEquals(View.VISIBLE, statusText.getVisibility());
+    }
+
+    @Test
+    public void doCancel_onFailure_showsErrorStatus() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        doAnswer(inv -> {
+            BookingRepository.SimpleCallback cb = inv.getArgument(6);
+            cb.onFailure("Network error");
+            return null;
+        }).when(mockRepo).cancelReservation(any(), any(), any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+
+        setField(activity, "bookingRepository", mockRepo);
+
+        Reservation r = buildReservation(ReservationStatus.CONFIRMED.toFirestoreValue(), null);
+        invokePrivate(activity, "doCancel", Reservation.class, r);
+
+        TextView statusText = activity.findViewById(R.id.myReservationsStatus);
+        assertEquals(View.VISIBLE, statusText.getVisibility());
+        assertTrue(statusText.getText().toString().contains("Could not cancel"));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Reservation buildReservation(String status, String cancellationReason) {
@@ -211,5 +364,17 @@ public class MyReservationsActivityTest {
         r.setStatus(status);
         r.setCancellationReason(cancellationReason);
         return r;
+    }
+
+    private void invokePrivate(Object target, String methodName, Class<?> paramType, Object arg) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, paramType);
+        method.setAccessible(true);
+        method.invoke(target, arg);
+    }
+
+    private void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 }

@@ -1019,6 +1019,94 @@ public class AdminActivityTest {
         );
     }
 
+    // ── promptCancelEvent / doCancelEvent (US-14) ────────────────────────────
+
+    @Test
+    public void promptCancelEvent_withEmptyEventId_showsErrorInFeedback() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+        // eventIdInput is empty by default in add-mode
+
+        invokePrivate(activity, "promptCancelEvent");
+
+        TextView feedbackText = activity.findViewById(R.id.feedbackText);
+        assertEquals("Load an event before cancelling it.", feedbackText.getText().toString());
+    }
+
+    @Test
+    public void promptCancelEvent_withLoadedEvent_showsConfirmationDialog() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-1");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Jazz Night");
+        ((EditText) activity.findViewById(R.id.locationInput)).setText("Montreal");
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("2026-05-01 19:00");
+
+        invokePrivate(activity, "promptCancelEvent");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    @Test
+    public void doCancelEvent_onSuccess_hidesCancelButtonAndShowsFeedback() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+
+        // Inject mock repository that calls onSuccess
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        doAnswer(inv -> {
+            BookingRepository.SimpleCallback cb = inv.getArgument(4);
+            cb.onSuccess("Event cancelled. 2 customer(s) notified.");
+            return null;
+        }).when(mockRepo).cancelEventWithNotifications(any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+        setField(activity, "bookingRepository", mockRepo);
+
+        // Make cancelEventButton visible (simulating edit mode)
+        Button cancelBtn = activity.findViewById(R.id.cancelEventButton);
+        cancelBtn.setVisibility(View.VISIBLE);
+
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-1");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Jazz Night");
+        ((EditText) activity.findViewById(R.id.locationInput)).setText("Montreal");
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("2026-05-01 19:00");
+
+        invokePrivate(activity, "promptCancelEvent");
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(View.GONE, cancelBtn.getVisibility());
+        TextView feedbackText = activity.findViewById(R.id.feedbackText);
+        assertTrue(feedbackText.getText().toString().contains("customer"));
+    }
+
+    @Test
+    public void doCancelEvent_onFailure_showsErrorFeedback() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        doAnswer(inv -> {
+            BookingRepository.SimpleCallback cb = inv.getArgument(4);
+            cb.onFailure("Network error");
+            return null;
+        }).when(mockRepo).cancelEventWithNotifications(any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+        setField(activity, "bookingRepository", mockRepo);
+
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-fail");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Bad Show");
+
+        invokePrivate(activity, "promptCancelEvent");
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        TextView feedbackText = activity.findViewById(R.id.feedbackText);
+        assertEquals("Network error", feedbackText.getText().toString());
+    }
+
     private void fillValidForm(AdminActivity activity) {
         ((EditText) activity.findViewById(R.id.titleInput)).setText("Britney Spears");
         ((EditText) activity.findViewById(R.id.descriptionInput)).setText("Britney in Toronto!");

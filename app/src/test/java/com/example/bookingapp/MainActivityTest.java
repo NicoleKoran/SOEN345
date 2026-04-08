@@ -117,6 +117,16 @@ public class MainActivityTest {
     }
 
     @Test
+    public void myReservationsButton_click_launchesMyReservationsActivity() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
+        activity.findViewById(R.id.myReservationsBtn).performClick();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MyReservationsActivity.class.getName(), next.getComponent().getClassName());
+    }
+
+    @Test
     public void onCreate_adminMode_hidesMyBookingsButton() {
         Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
         intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
