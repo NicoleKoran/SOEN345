@@ -7,7 +7,8 @@ import static org.junit.Assert.assertTrue;
 
 import androidx.test.core.app.ApplicationProvider;
 
-import com.example.bookingapp.models.Event;
+import com.example.bookingapp.Event;
+import com.example.bookingapp.EventCategory;
 import com.example.bookingapp.R;
 
 import org.junit.Test;
@@ -100,7 +101,7 @@ public class EventAdapterTest {
         event.setLocation("Montreal");
         event.setDate(new Date(1775452380000L));
         event.setAvailableSeats(40);
-        event.setCategory(category);
+        event.setCategory(category == null ? null : EventCategory.fromValue(category));
         return event;
     }
 

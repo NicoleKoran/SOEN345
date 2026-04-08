@@ -9,8 +9,9 @@ import android.widget.TextView;
 
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.bookingapp.Event;
+import com.example.bookingapp.EventCategory;
 import com.example.bookingapp.R;
-import com.example.bookingapp.models.Event;
 
 import java.text.SimpleDateFormat;
 import java.util.List;
@@ -46,6 +47,7 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
         View categoryStripe;
         Button bookButton, editEventButton;
 
+
         public ViewHolder(View itemView) {
             super(itemView);
             title = itemView.findViewById(R.id.titleText);
@@ -80,7 +82,7 @@ public class EventAdapter extends RecyclerView.Adapter<EventAdapter.ViewHolder> 
             holder.date.setText("🗓 Date TBD");
         }
 
-        Event.EventCategory category = event.getCategoryEnum();
+        EventCategory category = event.getCategory();
         String cat = category != null ? category.name().toUpperCase() : "EVENT";
         int color = getCategoryColor(category != null ? category.name() : null);
 
