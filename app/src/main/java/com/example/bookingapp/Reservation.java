@@ -117,4 +117,10 @@ public class Reservation {
     public void setEmailSent(boolean emailSent) {
         this.emailSent = emailSent;
     }
+    public void setEventTitle(String eventTitle) {
+        this.eventTitle = eventTitle;
+    }
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
+    }
 }

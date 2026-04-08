@@ -285,6 +285,16 @@
                 android:text="@string/view_reservations" />
 
             <Button
+                android:id="@+id/cancelEventButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#E65100"
+                android:text="Cancel Event &amp; Notify Customers"
+                android:textColor="#FFFFFF"
+                android:visibility="gone" />
+
+            <Button
                 android:id="@+id/deleteEventButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

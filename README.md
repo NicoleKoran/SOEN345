@@ -1,5 +1,38 @@
 # SOEN345
 
+## Admin Login
+
+To log in as an admin, use the following credentials on the login screen:
+
+- **Email:** `admin@test.com`
+- **Password:** `123456`
+
+Admin users can create, edit, and cancel events, view reservations per event, and cancel events with automatic email notifications sent to all affected customers.
+
+---
+
+## User Stories
+
+### US-09 — Reserve a ticket for an event
+Customers browse events on the main screen, tap **Book**, and confirm their booking. A Firestore transaction atomically decrements the available seat count and creates a reservation. A confirmation email is sent via EmailJS.
+
+### US-10 — View my reservation history
+After logging in, customers tap **My Bookings** (top-right of the event list) to see all their past and upcoming reservations with status badges (Confirmed / Cancelled / Pending).
+
+### US-11 — Cancel a reservation
+From the **My Bookings** screen, customers can tap **Cancel Reservation** on any active reservation. The cancellation is applied atomically in Firestore (seat is restored, event is re-opened if it was sold out), and a cancellation email is sent to the customer.
+
+### US-14 — Receive notification when a booked event is cancelled
+When an admin cancels an event via the **Cancel Event & Notify Customers** button in the admin form, the app queries all confirmed reservations for that event and sends a cancellation email to each affected customer via the Observer/Notification pattern.
+
+### US-19 — Handle concurrent users without double-booking
+All bookings run inside a Firestore **transaction** that atomically reads the seat count, validates availability, decrements it, and writes the reservation. This prevents race conditions where two users simultaneously book the last available seat. The UI also disables the confirm button immediately on tap to prevent duplicate submissions.
+
+### US-20 — Remain highly available via cloud deployment
+The app backend runs entirely on **Firebase** (Firestore + Authentication), which is a multi-region, auto-scaled, managed cloud platform with built-in redundancy and no single point of failure. Firebase guarantees 99.95 % uptime SLA for Firestore, ensuring the app remains available under load.
+
+---
+
 ## Testing & Continuous Integration
 
 This project uses an automated testing and CI pipeline to ensure code quality and reliability.

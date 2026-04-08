@@ -132,6 +132,57 @@ public class EventRepository {
                 .addOnFailureListener(error -> callback.onError(error.getMessage()));
     }
 
+    /** US-10: Fetches all reservations for a specific user, ordered by reservation date. */
+    public void getReservationsForUser(String userId, UserReservationsCallback callback) {
+        reservationsCollection.whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    List<Reservation> reservations = new ArrayList<>();
+                    for (DocumentSnapshot document : snapshot.getDocuments()) {
+                        try {
+                            Reservation r = document.toObject(Reservation.class);
+                            if (r != null) {
+                                r.setReservationId(document.getId());
+                                reservations.add(r);
+                            }
+                        } catch (Exception ignored) {
+                            // Skip malformed documents
+                        }
+                    }
+                    Collections.sort(reservations, (a, b) -> {
+                        if (a.getReservationDate() == null) return 1;
+                        if (b.getReservationDate() == null) return -1;
+                        return b.getReservationDate().compareTo(a.getReservationDate());
+                    });
+                    callback.onSuccess(reservations);
+                })
+                .addOnFailureListener(error -> callback.onError(error.getMessage()));
+    }
+
+    /** US-14: Fetches all confirmed reservations for an event (used before cancelling). */
+    public void getConfirmedReservationsForEvent(String eventId, UserReservationsCallback callback) {
+        reservationsCollection
+                .whereEqualTo("eventId", eventId)
+                .whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    List<Reservation> reservations = new ArrayList<>();
+                    for (DocumentSnapshot document : snapshot.getDocuments()) {
+                        try {
+                            Reservation r = document.toObject(Reservation.class);
+                            if (r != null) {
+                                r.setReservationId(document.getId());
+                                reservations.add(r);
+                            }
+                        } catch (Exception ignored) {
+                            // Skip malformed documents
+                        }
+                    }
+                    callback.onSuccess(reservations);
+                })
+                .addOnFailureListener(error -> callback.onError(error.getMessage()));
+    }
+
     private void loadEventSubcollectionReservations(String eventId, ReservationsCallback callback) {
         firestore.collection("events")
                 .document(eventId)
@@ -228,6 +279,11 @@ public class EventRepository {
     public interface EventsCallback {
         void onSuccess(List<Event> events);
 
+        void onError(String message);
+    }
+
+    public interface UserReservationsCallback {
+        void onSuccess(List<Reservation> reservations);
         void onError(String message);
     }
 }

@@ -10,6 +10,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 
 import java.text.SimpleDateFormat;
+import java.util.List;
 import java.util.Locale;
 
 public class BookingRepository {
@@ -23,6 +24,11 @@ public class BookingRepository {
         void onSuccess(String reservationId, String eventTitle,
                        String eventLocation, String eventDate,
                        String price, String ticketId, String seatNumber);
+        void onFailure(String errorMessage);
+    }
+
+    public interface SimpleCallback {
+        void onSuccess(String message);
         void onFailure(String errorMessage);
     }
 
@@ -183,6 +189,144 @@ public class BookingRepository {
         }).addOnFailureListener(e -> {
             Log.e(TAG, "Transaction failed: " + e.getMessage());
             callback.onFailure(e.getMessage());
+        });
+    }
+
+    /**
+     * US-11: Cancels a reservation atomically — sets status to CANCELLED and
+     * restores the seat to the event. Also sends a cancellation email via the
+     * Observer pattern.
+     */
+    public void cancelReservation(String reservationId, String eventId,
+                                  String userEmail, String eventTitle,
+                                  String eventLocation, String eventDate,
+                                  SimpleCallback callback) {
+
+        DocumentReference reservationRef =
+                db.collection("reservations").document(reservationId);
+        DocumentReference eventRef =
+                db.collection("events").document(eventId);
+
+        db.runTransaction(transaction -> {
+            DocumentSnapshot eventSnap = transaction.get(eventRef);
+            if (!eventSnap.exists()) {
+                throw new FirebaseFirestoreException("Event not found.",
+                        FirebaseFirestoreException.Code.NOT_FOUND);
+            }
+
+            DocumentSnapshot reservationSnap = transaction.get(reservationRef);
+            if (!reservationSnap.exists()) {
+                throw new FirebaseFirestoreException("Reservation not found.",
+                        FirebaseFirestoreException.Code.NOT_FOUND);
+            }
+
+            String currentStatus = reservationSnap.getString("status");
+            if (ReservationStatus.CANCELLED.toFirestoreValue().equals(currentStatus)) {
+                throw new FirebaseFirestoreException(
+                        "Reservation is already cancelled.",
+                        FirebaseFirestoreException.Code.FAILED_PRECONDITION);
+            }
+
+            // Mark reservation cancelled
+            transaction.update(reservationRef, "status",
+                    ReservationStatus.CANCELLED.toFirestoreValue());
+
+            // Restore the seat on the event (if event is not cancelled itself)
+            String eventStatus = eventSnap.getString("status");
+            if (!EventStatus.CANCELLED.toFirestoreValue().equals(eventStatus)) {
+                Long available = eventSnap.getLong("availableSeats");
+                long newAvailable = (available != null ? available : 0) + 1;
+                transaction.update(eventRef, "availableSeats", newAvailable);
+                // If it was sold out, mark available again
+                if (EventStatus.SOLDOUT.toFirestoreValue().equals(eventStatus)) {
+                    transaction.update(eventRef, "status",
+                            EventStatus.AVAILABLE.toFirestoreValue());
+                }
+            }
+
+            return null;
+        }).addOnSuccessListener(unused -> {
+            // Send cancellation email notification via Observer pattern
+            Reservation reservation = new Reservation();
+            reservation.setReservationId(reservationId);
+            reservation.setEventTitle(eventTitle);
+            reservation.setUserEmail(userEmail);
+
+            emailNotification emailObserver = new emailNotification(
+                    reservationId,
+                    userEmail,
+                    eventTitle,
+                    eventLocation,
+                    eventDate,
+                    "",
+                    reservationId
+            );
+            reservation.attach(emailObserver);
+            reservation.cancelReservation();
+
+            Log.d(TAG, "Reservation cancelled: " + reservationId);
+            callback.onSuccess("Reservation cancelled successfully.");
+
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Cancel reservation failed: " + e.getMessage());
+            callback.onFailure(e.getMessage());
+        });
+    }
+
+    /**
+     * US-14: Cancels an event and emails all customers who have confirmed
+     * reservations, notifying them that the event was cancelled.
+     */
+    public void cancelEventWithNotifications(String eventId, String eventTitle,
+                                             String eventLocation, String eventDate,
+                                             SimpleCallback callback) {
+
+        EventRepository eventRepository = new EventRepository(db);
+
+        eventRepository.cancelEvent(eventId, new EventRepository.MessageCallback() {
+            @Override
+            public void onSuccess(String message) {
+                // Now notify all confirmed reservation holders
+                eventRepository.getConfirmedReservationsForEvent(eventId,
+                        new EventRepository.UserReservationsCallback() {
+                            @Override
+                            public void onSuccess(List<Reservation> reservations) {
+                                for (Reservation reservation : reservations) {
+                                    if (reservation.getUserEmail() == null
+                                            || reservation.getUserEmail().isEmpty()) {
+                                        continue;
+                                    }
+                                    emailNotification emailObserver = new emailNotification(
+                                            reservation.getReservationId(),
+                                            reservation.getUserEmail(),
+                                            eventTitle,
+                                            eventLocation,
+                                            eventDate,
+                                            "",
+                                            reservation.getReservationId()
+                                    );
+                                    reservation.attach(emailObserver);
+                                    reservation.cancelReservation();
+                                }
+                                Log.d(TAG, "Event cancelled and " + reservations.size()
+                                        + " customers notified.");
+                                callback.onSuccess("Event cancelled. "
+                                        + reservations.size() + " customer(s) notified.");
+                            }
+
+                            @Override
+                            public void onError(String error) {
+                                // Event is cancelled — just report partial success
+                                Log.e(TAG, "Could not load reservations for notification: " + error);
+                                callback.onSuccess("Event cancelled (notification error: " + error + ").");
+                            }
+                        });
+            }
+
+            @Override
+            public void onError(String errorMessage) {
+                callback.onFailure(errorMessage);
+            }
         });
     }
 }

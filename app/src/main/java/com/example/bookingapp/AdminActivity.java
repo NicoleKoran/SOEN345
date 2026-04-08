@@ -54,7 +54,9 @@ public class AdminActivity extends AppCompatActivity {
     private Button addEventButton;
     private Button updateEventButton;
     private Button viewReservationsButton;
+    private Button cancelEventButton;
     private Button deleteEventButton;
+    private BookingRepository bookingRepository;
     private TextView reservationsLabel;
     private TextView statusLabel;
     private TextView eventHeaderText;
@@ -74,6 +76,7 @@ public class AdminActivity extends AppCompatActivity {
         setContentView(R.layout.activity_admin);
 
         eventRepository = new EventRepository();
+        bookingRepository = new BookingRepository();
         bindViews();
         configureEventsList();
         configureSpinners();
@@ -102,6 +105,7 @@ public class AdminActivity extends AppCompatActivity {
         addEventButton = findViewById(R.id.addEventButton);
         updateEventButton = findViewById(R.id.updateEventButton);
         viewReservationsButton = findViewById(R.id.viewReservationsButton);
+        cancelEventButton = findViewById(R.id.cancelEventButton);
         deleteEventButton = findViewById(R.id.deleteEventButton);
         reservationsLabel = findViewById(R.id.reservationsLabel);
         statusLabel = findViewById(R.id.statusLabel);
@@ -171,6 +175,7 @@ public class AdminActivity extends AppCompatActivity {
         addEventButton.setOnClickListener(view -> addEvent());
         updateEventButton.setOnClickListener(view -> updateEvent());
         viewReservationsButton.setOnClickListener(view -> viewReservations());
+        cancelEventButton.setOnClickListener(view -> promptCancelEvent());
         deleteEventButton.setOnClickListener(view -> promptDeleteWithPassword());
 
         titleInput.addTextChangedListener(new TextWatcher() {
@@ -380,6 +385,48 @@ public class AdminActivity extends AppCompatActivity {
         });
     }
 
+    /** US-14: Cancels the event and emails all customers with confirmed reservations. */
+    private void promptCancelEvent() {
+        String eventId = readEventId();
+        if (eventId.isEmpty()) {
+            showError("Load an event before cancelling it.");
+            return;
+        }
+
+        String eventTitle = titleInput.getText().toString().trim();
+        String eventLocation = locationInput.getText().toString().trim();
+        String eventDate = dateInput.getText().toString().trim();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Cancel Event")
+                .setMessage("Cancel '" + (eventTitle.isEmpty() ? eventId : eventTitle)
+                        + "'? All customers with confirmed reservations will be notified by email.")
+                .setPositiveButton("Cancel Event", (dialog, which) ->
+                        doCancelEvent(eventId, eventTitle, eventLocation, eventDate))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void doCancelEvent(String eventId, String eventTitle,
+                               String eventLocation, String eventDate) {
+        bookingRepository.cancelEventWithNotifications(
+                eventId, eventTitle, eventLocation, eventDate,
+                new BookingRepository.SimpleCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        cancelEventButton.setVisibility(android.view.View.GONE);
+                        showSuccess(message);
+                        feedbackText.setText(message);
+                        feedbackText.setTextColor(getColor(android.R.color.holo_green_dark));
+                    }
+
+                    @Override
+                    public void onFailure(String errorMessage) {
+                        showError(errorMessage);
+                    }
+                });
+    }
+
     private Event buildEvent(boolean requireEventId) {
         return EventFormValidator.buildEvent(
                 eventIdInput.getText().toString(),
@@ -401,6 +448,7 @@ public class AdminActivity extends AppCompatActivity {
         addEventButton.setVisibility(android.view.View.GONE);
         updateEventButton.setVisibility(android.view.View.VISIBLE);
         viewReservationsButton.setVisibility(android.view.View.VISIBLE);
+        cancelEventButton.setVisibility(android.view.View.VISIBLE);
         deleteEventButton.setVisibility(android.view.View.VISIBLE);
         statusLabel.setVisibility(android.view.View.VISIBLE);
         statusSpinner.setVisibility(android.view.View.VISIBLE);
@@ -428,6 +476,7 @@ public class AdminActivity extends AppCompatActivity {
         addEventButton.setVisibility(android.view.View.VISIBLE);
         updateEventButton.setVisibility(android.view.View.GONE);
         viewReservationsButton.setVisibility(android.view.View.GONE);
+        cancelEventButton.setVisibility(android.view.View.GONE);
         deleteEventButton.setVisibility(android.view.View.GONE);
         statusLabel.setVisibility(android.view.View.GONE);
         statusSpinner.setVisibility(android.view.View.GONE);

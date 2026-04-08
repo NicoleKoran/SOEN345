@@ -92,6 +92,14 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
+        // US-10: Show "My Bookings" for non-admin customers
+        Button myReservationsBtn = findViewById(R.id.myReservationsBtn);
+        if (!isAdmin) {
+            myReservationsBtn.setVisibility(View.VISIBLE);
+            myReservationsBtn.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, MyReservationsActivity.class)));
+        }
+
         if (isAdmin) {
             addEventBtn.setVisibility(View.VISIBLE);
             addEventBtn.setOnClickListener(v -> {
