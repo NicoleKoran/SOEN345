@@ -9,6 +9,8 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 
+import com.google.firebase.firestore.WriteBatch;
+
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
@@ -227,9 +229,10 @@ public class BookingRepository {
                         FirebaseFirestoreException.Code.FAILED_PRECONDITION);
             }
 
-            // Mark reservation cancelled
-            transaction.update(reservationRef, "status",
-                    ReservationStatus.CANCELLED.toFirestoreValue());
+            // Mark reservation cancelled with reason so the UI can distinguish it
+            transaction.update(reservationRef,
+                    "status",             ReservationStatus.CANCELLED.toFirestoreValue(),
+                    "cancellationReason", "user_cancelled");
 
             // Restore the seat on the event (if event is not cancelled itself)
             String eventStatus = eventSnap.getString("status");
@@ -259,7 +262,8 @@ public class BookingRepository {
                     eventLocation,
                     eventDate,
                     "",
-                    reservationId
+                    reservationId,
+                    emailNotification.NotificationType.USER_CANCELLATION
             );
             reservation.attach(emailObserver);
             reservation.cancelReservation();
@@ -286,11 +290,37 @@ public class BookingRepository {
         eventRepository.cancelEvent(eventId, new EventRepository.MessageCallback() {
             @Override
             public void onSuccess(String message) {
-                // Now notify all confirmed reservation holders
+                // Cancel all confirmed reservations and notify their holders
                 eventRepository.getConfirmedReservationsForEvent(eventId,
                         new EventRepository.UserReservationsCallback() {
                             @Override
                             public void onSuccess(List<Reservation> reservations) {
+                                if (reservations.isEmpty()) {
+                                    callback.onSuccess("Event cancelled. No customers to notify.");
+                                    return;
+                                }
+
+                                // Batch-update every reservation status in Firestore so
+                                // the "My Bookings" screen reflects the cancellation immediately.
+                                WriteBatch batch = db.batch();
+                                for (Reservation reservation : reservations) {
+                                    batch.update(
+                                            db.collection("reservations")
+                                              .document(reservation.getReservationId()),
+                                            "status",             ReservationStatus.CANCELLED.toFirestoreValue(),
+                                            "cancellationReason", "event_cancelled"
+                                    );
+                                }
+
+                                batch.commit().addOnCompleteListener(task -> {
+                                    if (!task.isSuccessful()) {
+                                        Log.e(TAG, "Batch reservation cancel failed: "
+                                                + (task.getException() != null
+                                                   ? task.getException().getMessage() : "unknown"));
+                                    }
+                                });
+
+                                // Send EVENT_CANCELLATION email to each affected customer
                                 for (Reservation reservation : reservations) {
                                     if (reservation.getUserEmail() == null
                                             || reservation.getUserEmail().isEmpty()) {
@@ -303,11 +333,13 @@ public class BookingRepository {
                                             eventLocation,
                                             eventDate,
                                             "",
-                                            reservation.getReservationId()
+                                            reservation.getReservationId(),
+                                            emailNotification.NotificationType.EVENT_CANCELLATION
                                     );
                                     reservation.attach(emailObserver);
                                     reservation.cancelReservation();
                                 }
+
                                 Log.d(TAG, "Event cancelled and " + reservations.size()
                                         + " customers notified.");
                                 callback.onSuccess("Event cancelled. "
@@ -316,7 +348,6 @@ public class BookingRepository {
 
                             @Override
                             public void onError(String error) {
-                                // Event is cancelled — just report partial success
                                 Log.e(TAG, "Could not load reservations for notification: " + error);
                                 callback.onSuccess("Event cancelled (notification error: " + error + ").");
                             }

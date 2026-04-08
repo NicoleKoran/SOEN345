@@ -30,6 +30,19 @@ public class emailNotification implements NotificationListener {
     /** Unit tests set this to a MockWebServer URL; production leaves it null. */
     static String testEmailEndpointUrl;
 
+    /**
+     * Distinguishes why this notification is being sent so the email content
+     * and subject line can differ between confirmations and cancellations.
+     */
+    public enum NotificationType {
+        /** Sent after a customer successfully books a ticket. */
+        BOOKING_CONFIRMATION,
+        /** Sent when the customer themselves cancels their own reservation. */
+        USER_CANCELLATION,
+        /** Sent when an admin cancels the whole event, affecting all reservations. */
+        EVENT_CANCELLATION
+    }
+
     private final String notificationId;
     private String message;
     private Date sentDate;
@@ -37,64 +50,115 @@ public class emailNotification implements NotificationListener {
     private final String toEmail;
     private final String eventTitle;
     private final String eventLocation;
-    private final String eventDate;   //hardcoded format
+    private final String eventDate;
     private final String price;
     private final String reservationId;
+    private final NotificationType notificationType;
 
     /**
-     * Constructor — called inside BookingRepository after the transaction succeeds
+     * Full constructor — used by BookingRepository.
      *
-     *notificationId  reuses the Firestore reservation doc ID
-     * toEmail         the logged-in user's email from FirebaseAuth
-     * eventTitle      shown in email subject + body
-     * eventLocation   shown in email body
-     * eventDate       already formatted as a readable string
-     * price           shown in email body
-     * reservationId   shown as reference number in email
+     * @param notificationId  reuses the Firestore reservation doc ID
+     * @param toEmail         the customer's email address
+     * @param eventTitle      shown in email subject + body
+     * @param eventLocation   shown in email body
+     * @param eventDate       already formatted as a readable string
+     * @param price           shown in email body (confirmation only)
+     * @param reservationId   reference number shown in email
+     * @param notificationType controls which message variant is sent
      */
-    public emailNotification(String notificationId, String toEmail, String eventTitle, String eventLocation, String eventDate, String price, String reservationId) {
-        this.notificationId = notificationId;
-        this.toEmail        = toEmail;
-        this.eventTitle     = eventTitle;
-        this.eventLocation  = eventLocation;
-        this.eventDate      = eventDate;
-        this.price          = price;
-        this.reservationId  = reservationId;
+    public emailNotification(String notificationId, String toEmail, String eventTitle,
+                             String eventLocation, String eventDate, String price,
+                             String reservationId, NotificationType notificationType) {
+        this.notificationId  = notificationId;
+        this.toEmail         = toEmail;
+        this.eventTitle      = eventTitle;
+        this.eventLocation   = eventLocation;
+        this.eventDate       = eventDate;
+        this.price           = price;
+        this.reservationId   = reservationId;
+        this.notificationType = notificationType;
     }
 
-    //called by Reservation.notifyObservers()
+    /**
+     * Backward-compatible constructor — defaults to BOOKING_CONFIRMATION.
+     * Existing callers (e.g. tests) do not need to change.
+     */
+    public emailNotification(String notificationId, String toEmail, String eventTitle,
+                             String eventLocation, String eventDate, String price,
+                             String reservationId) {
+        this(notificationId, toEmail, eventTitle, eventLocation, eventDate,
+                price, reservationId, NotificationType.BOOKING_CONFIRMATION);
+    }
+
+    /** Called by Reservation.notifyObservers() */
     @Override
     public void update(String message) {
         this.message  = message;
-        this.sentDate = new Date(); // timestamp of when notification was triggered
-        Log.d(TAG, "Observer notified: " + message);
-        sendEmail(message); // hand off to the actual email sender
+        this.sentDate = new Date();
+        Log.d(TAG, "Observer notified [" + notificationType + "]: " + message);
+        sendEmail(message);
     }
 
     /**
-     * Sends the confirmation email via EmailJS.
-     * Uses OkHttp to make an async HTTP POST — never blocks the UI thread.
+     * Sends an email via EmailJS with content that varies by {@link NotificationType}.
+     *
+     * Template variables sent (add these to your EmailJS template):
+     *   {{email}}             — recipient address
+     *   {{event_title}}       — name of the event
+     *   {{event_date}}        — formatted date string
+     *   {{price}}             — price / seat info  (confirmation only)
+     *   {{reservation_id}}    — booking reference number
+     *   {{notification_type}} — "booking_confirmation" | "user_cancellation" | "event_cancellation"
+     *   {{subject}}           — suggested email subject line
+     *   {{message}}           — main body text describing what happened
      */
     public void sendEmail(String message) {
         try {
-            // template_params JSON
-            // Each key here must match a {{variable}} in EmailJS template
             JSONObject templateParams = new JSONObject();
-            templateParams.put("email",       toEmail);
-            templateParams.put("event_title",    eventTitle);
-            templateParams.put("event_date",     eventDate);
-            templateParams.put("price",          price);
-            templateParams.put("reservation_id", reservationId);
+            templateParams.put("email",             toEmail);
+            templateParams.put("event_title",       eventTitle);
+            templateParams.put("event_date",        eventDate);
+            templateParams.put("price",             price);
+            templateParams.put("reservation_id",    reservationId);
+            templateParams.put("notification_type", notificationType.name().toLowerCase());
 
+            // Subject and body differ per notification type
+            switch (notificationType) {
 
-            // EmailJS request body
+                case USER_CANCELLATION:
+                    templateParams.put("subject",
+                            "Reservation Cancelled – " + eventTitle);
+                    templateParams.put("message",
+                            "Your reservation for \"" + eventTitle + "\" has been cancelled "
+                            + "as requested. We hope to see you at a future event!");
+                    break;
+
+                case EVENT_CANCELLATION:
+                    templateParams.put("subject",
+                            "Event Cancelled – " + eventTitle);
+                    templateParams.put("message",
+                            "We're sorry to inform you that \"" + eventTitle + "\" has been "
+                            + "cancelled by the organizer. Your reservation has been "
+                            + "automatically cancelled. We apologize for any inconvenience.");
+                    break;
+
+                case BOOKING_CONFIRMATION:
+                default:
+                    templateParams.put("subject",
+                            "Booking Confirmed – " + eventTitle);
+                    templateParams.put("message",
+                            "Your booking for \"" + eventTitle + "\" is confirmed! "
+                            + "We look forward to seeing you there.");
+                    break;
+            }
+
             JSONObject body = new JSONObject();
             body.put("service_id",      SERVICE_ID);
             body.put("template_id",     TEMPLATE_ID);
             body.put("user_id",         PUBLIC_KEY);
             body.put("template_params", templateParams);
 
-            // async HTTP request
             OkHttpClient client = new OkHttpClient();
             String url = testEmailEndpointUrl != null ? testEmailEndpointUrl : EMAILJS_URL;
             Request request = new Request.Builder()
@@ -103,21 +167,19 @@ public class emailNotification implements NotificationListener {
                             body.toString(),
                             MediaType.parse("application/json")))
                     .addHeader("Content-Type", "application/json")
-                    .addHeader("origin", "http://localhost") // required by EmailJS
+                    .addHeader("origin", "http://localhost")
                     .build();
 
-            // enqueue() runs on a background thread — UI stays smooth
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    // Network error — booking is still saved, just log it
                     Log.e(TAG, "Email network failure: " + e.getMessage());
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) {
                     if (response.isSuccessful()) {
-                        Log.d(TAG, "Email sent successfully to " + toEmail);
+                        Log.d(TAG, "Email sent [" + notificationType + "] to " + toEmail);
                     } else {
                         Log.e(TAG, "EmailJS error: HTTP " + response.code());
                     }
@@ -130,7 +192,8 @@ public class emailNotification implements NotificationListener {
     }
 
     // Getters
-    public String getNotificationId() { return notificationId; }
-    public String getMessage()        { return message; }
-    public Date getSentDate()         { return sentDate; }
+    public String getNotificationId()      { return notificationId; }
+    public String getMessage()             { return message; }
+    public Date getSentDate()              { return sentDate; }
+    public NotificationType getNotificationType() { return notificationType; }
 }

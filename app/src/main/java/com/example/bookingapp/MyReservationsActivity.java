@@ -177,18 +177,31 @@ public class MyReservationsActivity extends AppCompatActivity {
 
             holder.reservationId.setText("Ref: " + r.getReservationId());
 
-            String status = r.getStatus() != null ? r.getStatus().toUpperCase(Locale.US) : "PENDING";
-            holder.statusBadge.setText(status);
+            // Badge label and colour differ by status + cancellation reason
+            boolean isCancelled = ReservationStatus.CANCELLED.toFirestoreValue()
+                    .equalsIgnoreCase(r.getStatus());
+            boolean isConfirmed = ReservationStatus.CONFIRMED.toFirestoreValue()
+                    .equalsIgnoreCase(r.getStatus());
 
-            // Colour the status badge
             int badgeColor;
-            if (ReservationStatus.CONFIRMED.toFirestoreValue().equalsIgnoreCase(r.getStatus())) {
+            String badgeLabel;
+            if (isConfirmed) {
+                badgeLabel = "CONFIRMED";
                 badgeColor = android.graphics.Color.parseColor("#2E7D32");
-            } else if (ReservationStatus.CANCELLED.toFirestoreValue().equalsIgnoreCase(r.getStatus())) {
-                badgeColor = android.graphics.Color.parseColor("#C62828");
+            } else if (isCancelled) {
+                if ("event_cancelled".equals(r.getCancellationReason())) {
+                    badgeLabel = "EVENT CANCELLED";
+                    badgeColor = android.graphics.Color.parseColor("#6A1B9A"); // purple — organiser's fault
+                } else {
+                    badgeLabel = "CANCELLED BY YOU";
+                    badgeColor = android.graphics.Color.parseColor("#C62828"); // red — self-cancelled
+                }
             } else {
+                badgeLabel = "PENDING";
                 badgeColor = android.graphics.Color.parseColor("#F57C00");
             }
+
+            holder.statusBadge.setText(badgeLabel);
             holder.statusBadge.getBackground().setTint(badgeColor);
 
             boolean cancellable = !ReservationStatus.CANCELLED.toFirestoreValue()
