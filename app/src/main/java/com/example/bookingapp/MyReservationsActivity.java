@@ -31,13 +31,16 @@ public class MyReservationsActivity extends AppCompatActivity {
     private TextView statusText;
     private ReservationsAdapter adapter;
 
-    private final EventRepository eventRepository = new EventRepository();
-    private final BookingRepository bookingRepository = new BookingRepository();
+    private EventRepository eventRepository;
+    private BookingRepository bookingRepository;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_my_reservations);
+
+        eventRepository = new EventRepository();
+        bookingRepository = new BookingRepository();
 
         recyclerView = findViewById(R.id.reservationsRecyclerView);
         emptyText    = findViewById(R.id.emptyText);

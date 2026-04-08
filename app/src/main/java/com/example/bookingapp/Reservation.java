@@ -122,6 +122,9 @@ public class Reservation {
     public void setReservationId(String reservationId) {
         this.reservationId = reservationId;
     }
+    public void setReservationDate(Date reservationDate) {
+        this.reservationDate = reservationDate;
+    }
     public void setEmailSent(boolean emailSent) {
         this.emailSent = emailSent;
     }
@@ -133,5 +136,8 @@ public class Reservation {
     }
     public void setCancellationReason(String cancellationReason) {
         this.cancellationReason = cancellationReason;
+    }
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

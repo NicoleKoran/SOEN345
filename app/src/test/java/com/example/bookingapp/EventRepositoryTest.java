@@ -515,12 +515,164 @@ public class EventRepositoryTest {
         }
     }
 
+    // ── getReservationsForUser (US-10) ────────────────────────────────────────
+
+    @Test
+    public void getReservationsForUser_returnsReservationsSortedNewestFirst() {
+        Query query = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot older = mock(DocumentSnapshot.class);
+        DocumentSnapshot newer = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("userId", "user-1")).thenReturn(query);
+        when(query.get()).thenReturn(Tasks.forResult(querySnapshot));
+
+        Reservation olderReservation = new Reservation(
+                "evt-1", "movie", "user-1", "u@test.com",
+                "Old Show", "MTL", new Date(1000L), 0);
+        olderReservation.setReservationDate(new Date(1000L));
+        Reservation newerReservation = new Reservation(
+                "evt-2", "concert", "user-1", "u@test.com",
+                "New Show", "MTL", new Date(9000L), 0);
+        newerReservation.setReservationDate(new Date(9000L));
+
+        when(older.getId()).thenReturn("res-old");
+        when(older.toObject(Reservation.class)).thenReturn(olderReservation);
+        when(newer.getId()).thenReturn("res-new");
+        when(newer.toObject(Reservation.class)).thenReturn(newerReservation);
+        when(querySnapshot.getDocuments()).thenReturn(List.of(older, newer));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getReservationsForUser("user-1", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(2, callback.reservations.size());
+        // Newer reservation date comes first (sorted descending by reservationDate)
+        assertEquals("res-new", callback.reservations.get(0).getReservationId());
+        assertEquals("res-old", callback.reservations.get(1).getReservationId());
+    }
+
+    @Test
+    public void getReservationsForUser_skipsMalformedDocuments() {
+        Query query = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot good = mock(DocumentSnapshot.class);
+        DocumentSnapshot bad = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("userId", "user-2")).thenReturn(query);
+        when(query.get()).thenReturn(Tasks.forResult(querySnapshot));
+
+        Reservation goodReservation = new Reservation(
+                "evt-1", "sport", "user-2", "b@test.com",
+                "Game Night", "Toronto", new Date(), 0);
+        when(good.getId()).thenReturn("res-good");
+        when(good.toObject(Reservation.class)).thenReturn(goodReservation);
+        when(bad.getId()).thenReturn("res-bad");
+        when(bad.toObject(Reservation.class)).thenReturn(null); // null → skipped
+        when(querySnapshot.getDocuments()).thenReturn(List.of(good, bad));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getReservationsForUser("user-2", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(1, callback.reservations.size());
+        assertEquals("res-good", callback.reservations.get(0).getReservationId());
+    }
+
+    @Test
+    public void getReservationsForUser_propagatesQueryFailure() {
+        Query query = mock(Query.class);
+        when(reservationsCollection.whereEqualTo("userId", "user-3")).thenReturn(query);
+        when(query.get()).thenReturn(Tasks.forException(new RuntimeException("query error")));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getReservationsForUser("user-3", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals("query error", callback.errorMessage);
+    }
+
+    // ── getConfirmedReservationsForEvent (US-14) ──────────────────────────────
+
+    @Test
+    public void getConfirmedReservationsForEvent_returnsOnlyConfirmedReservations() {
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot confirmed = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(querySnapshot));
+
+        Reservation confirmedReservation = new Reservation(
+                "evt-1", "concert", "user-1", "u@test.com",
+                "Jazz Night", "MTL", new Date(), 0);
+        when(confirmed.getId()).thenReturn("res-confirmed");
+        when(confirmed.toObject(Reservation.class)).thenReturn(confirmedReservation);
+        when(querySnapshot.getDocuments()).thenReturn(List.of(confirmed));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getConfirmedReservationsForEvent("evt-1", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(1, callback.reservations.size());
+        assertEquals("res-confirmed", callback.reservations.get(0).getReservationId());
+    }
+
+    @Test
+    public void getConfirmedReservationsForEvent_propagatesQueryFailure() {
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        when(reservationsCollection.whereEqualTo("eventId", "evt-fail")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forException(new RuntimeException("confirmed query failed")));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getConfirmedReservationsForEvent("evt-fail", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals("confirmed query failed", callback.errorMessage);
+    }
+
+    // ── UserReservationsCallback interface ────────────────────────────────────
+
+    @Test
+    public void userReservationsCallback_onSuccessAndOnError_deliverValues() {
+        Reservation r = new Reservation(
+                "e1", "movie", "u1", "a@b.com", "Show", "MTL", new Date(), 0);
+
+        TestUserReservationsCallback successCb = new TestUserReservationsCallback();
+        successCb.onSuccess(List.of(r));
+        assertEquals(1, successCb.reservations.size());
+
+        TestUserReservationsCallback errorCb = new TestUserReservationsCallback();
+        errorCb.onError("something went wrong");
+        assertEquals("something went wrong", errorCb.errorMessage);
+    }
+
     private static final class TestReservationsCallback implements EventRepository.ReservationsCallback {
         List<ReservationSummary> reservations;
         String errorMessage;
 
         @Override
         public void onSuccess(List<ReservationSummary> reservations) {
+            this.reservations = reservations;
+        }
+
+        @Override
+        public void onError(String message) {
+            errorMessage = message;
+        }
+    }
+
+    private static final class TestUserReservationsCallback
+            implements EventRepository.UserReservationsCallback {
+        List<Reservation> reservations;
+        String errorMessage;
+
+        @Override
+        public void onSuccess(List<Reservation> reservations) {
             this.reservations = reservations;
         }
 

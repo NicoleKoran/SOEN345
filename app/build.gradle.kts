@@ -38,6 +38,11 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                // Prevent OOM when Robolectric spins up many Activity instances in CI
+                it.maxHeapSize = "2g"
+                it.jvmArgs("-XX:MaxMetaspaceSize=512m", "-noverify")
+            }
         }
     }
 }

@@ -86,4 +86,85 @@ class emailNotificationTest {
             assertDoesNotThrow(() -> n.sendEmail("Test booking message"));
         }
     }
+
+    // ── NotificationType tests ─────────────────────────────────────────────────
+
+    @Test
+    void backwardCompatibleConstructor_defaultsToBookingConfirmation() {
+        emailNotification n = buildNotification();
+        assertEquals(emailNotification.NotificationType.BOOKING_CONFIRMATION,
+                n.getNotificationType());
+    }
+
+    @Test
+    void fullConstructor_userCancellation_setsType() {
+        emailNotification n = new emailNotification(
+                "n-1", "user@test.com", "Jazz Night", "Montreal",
+                "Apr 12, 2026", "50", "res-1",
+                emailNotification.NotificationType.USER_CANCELLATION);
+        assertEquals(emailNotification.NotificationType.USER_CANCELLATION,
+                n.getNotificationType());
+    }
+
+    @Test
+    void fullConstructor_eventCancellation_setsType() {
+        emailNotification n = new emailNotification(
+                "n-2", "user@test.com", "Jazz Night", "Montreal",
+                "Apr 12, 2026", "50", "res-2",
+                emailNotification.NotificationType.EVENT_CANCELLATION);
+        assertEquals(emailNotification.NotificationType.EVENT_CANCELLATION,
+                n.getNotificationType());
+    }
+
+    @Test
+    void update_userCancellation_doesNotThrow() {
+        try (MockedStatic<Log> ignored = mockStatic(Log.class)) {
+            emailNotification n = new emailNotification(
+                    "n-3", "user@test.com", "Jazz Night", "Montreal",
+                    "Apr 12, 2026", "", "res-3",
+                    emailNotification.NotificationType.USER_CANCELLATION);
+            assertDoesNotThrow(() -> n.update("Your reservation has been cancelled."));
+            assertEquals("Your reservation has been cancelled.", n.getMessage());
+            assertNotNull(n.getSentDate());
+        }
+    }
+
+    @Test
+    void update_eventCancellation_doesNotThrow() {
+        try (MockedStatic<Log> ignored = mockStatic(Log.class)) {
+            emailNotification n = new emailNotification(
+                    "n-4", "user@test.com", "Jazz Night", "Montreal",
+                    "Apr 12, 2026", "", "res-4",
+                    emailNotification.NotificationType.EVENT_CANCELLATION);
+            assertDoesNotThrow(() -> n.update("Event has been cancelled by organizer."));
+            assertEquals("Event has been cancelled by organizer.", n.getMessage());
+        }
+    }
+
+    @Test
+    void notificationTypeEnum_hasThreeValues() {
+        assertEquals(3, emailNotification.NotificationType.values().length);
+    }
+
+    @Test
+    void sendEmail_userCancellationType_doesNotThrow() {
+        try (MockedStatic<Log> ignored = mockStatic(Log.class)) {
+            emailNotification n = new emailNotification(
+                    "n-5", "user@test.com", "Concert", "Montreal",
+                    "Apr 12, 2026", "", "res-5",
+                    emailNotification.NotificationType.USER_CANCELLATION);
+            assertDoesNotThrow(() -> n.sendEmail("cancelled"));
+        }
+    }
+
+    @Test
+    void sendEmail_eventCancellationType_doesNotThrow() {
+        try (MockedStatic<Log> ignored = mockStatic(Log.class)) {
+            emailNotification n = new emailNotification(
+                    "n-6", "user@test.com", "Concert", "Montreal",
+                    "Apr 12, 2026", "", "res-6",
+                    emailNotification.NotificationType.EVENT_CANCELLATION);
+            assertDoesNotThrow(() -> n.sendEmail("event cancelled"));
+        }
+    }
 }
