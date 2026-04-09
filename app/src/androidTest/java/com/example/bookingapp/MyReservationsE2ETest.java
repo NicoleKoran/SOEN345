@@ -216,7 +216,7 @@ public class MyReservationsE2ETest {
 
             // Inject a fake booking repository that records the reservation ID
             scenario.onActivity(activity ->
-                    activity.bookingRepository = new BookingRepository() {
+                    activity.bookingRepository = new BookingRepository(null, null) {
                         @Override
                         public void cancelReservation(
                                 String reservationId, String eventId,

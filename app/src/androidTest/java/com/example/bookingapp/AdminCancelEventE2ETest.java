@@ -152,7 +152,7 @@ public class AdminCancelEventE2ETest {
                     java.lang.reflect.Field f =
                             AdminActivity.class.getDeclaredField("bookingRepository");
                     f.setAccessible(true);
-                    f.set(activity, new BookingRepository() {
+                    f.set(activity, new BookingRepository(null, null) {
                         @Override
                         public void cancelEventWithNotifications(
                                 String eventId, String eventTitle,
@@ -193,7 +193,7 @@ public class AdminCancelEventE2ETest {
                     java.lang.reflect.Field f =
                             AdminActivity.class.getDeclaredField("bookingRepository");
                     f.setAccessible(true);
-                    f.set(activity, new BookingRepository() {
+                    f.set(activity, new BookingRepository(null, null) {
                         @Override
                         public void cancelEventWithNotifications(
                                 String eventId, String eventTitle,
@@ -231,7 +231,7 @@ public class AdminCancelEventE2ETest {
                     java.lang.reflect.Field f =
                             AdminActivity.class.getDeclaredField("bookingRepository");
                     f.setAccessible(true);
-                    f.set(activity, new BookingRepository() {
+                    f.set(activity, new BookingRepository(null, null) {
                         @Override
                         public void cancelEventWithNotifications(
                                 String eventId, String eventTitle,
