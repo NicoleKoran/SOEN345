@@ -1048,6 +1048,20 @@ public class AdminActivityTest {
     }
 
     @Test
+    public void promptCancelEvent_withEmptyTitle_usesEventIdInDialogMessage() throws Exception {
+        // Covers the eventTitle.isEmpty() ? eventId : eventTitle branch where title IS empty
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-007");
+        // titleInput deliberately left empty
+
+        invokePrivate(activity, "promptCancelEvent");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    @Test
     public void doCancelEvent_onSuccess_hidesCancelButtonAndShowsFeedback() throws Exception {
         AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
 

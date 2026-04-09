@@ -4,27 +4,38 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.view.View;
 import android.widget.TextView;
 
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.google.firebase.FirebaseApp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.MockedStatic;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.shadows.ShadowAlertDialog;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Unit tests for MyReservationsActivity (US-10, US-11).
@@ -364,6 +375,148 @@ public class MyReservationsActivityTest {
         r.setStatus(status);
         r.setCancellationReason(cancellationReason);
         return r;
+    }
+
+    // ── onCancelClicked dialog positive-button click ──────────────────────────
+
+    @Test
+    public void onCancelClicked_positiveButtonClick_triggersDoCancel() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        // Inject a no-op mock BookingRepository so doCancel doesn't hit Firestore
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        setField(activity, "bookingRepository", mockRepo);
+
+        Reservation confirmed = buildReservation(
+                ReservationStatus.CONFIRMED.toFirestoreValue(), null);
+
+        // Show the cancel-confirmation dialog
+        invokePrivate(activity, "onCancelClicked", Reservation.class, confirmed);
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+
+        // Clicking "Yes, Cancel" fires the positive-button lambda → doCancel(reservation)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        org.robolectric.shadows.ShadowLooper.idleMainLooper();
+
+        // doCancel must have forwarded the reservation ID to cancelReservation
+        org.mockito.Mockito.verify(mockRepo).cancelReservation(
+                eq("res-test"), any(), any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+    }
+
+    // ── Instrumentation fast-path (loadInstrumentationReservations) ──────────
+
+    @Test
+    public void loadReservations_withInstrumentationFlag_showsTwoReservations() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(),
+                MyReservationsActivity.class);
+        intent.putExtra(MyReservationsActivity.EXTRA_INSTRUMENTATION_PREFILL, true);
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class, intent).setup().get();
+
+        // The instrumentation path should bypass Firebase and pre-populate the list
+        RecyclerView recyclerView = activity.findViewById(R.id.reservationsRecyclerView);
+        TextView emptyText = activity.findViewById(R.id.emptyText);
+        assertEquals(View.VISIBLE, recyclerView.getVisibility());
+        assertEquals(View.GONE, emptyText.getVisibility());
+        assertEquals(2, recyclerView.getAdapter().getItemCount());
+    }
+
+    // ── loadReservations with a logged-in user (getReservationsForUser paths) ─
+
+    @Test
+    public void loadReservations_loggedInUser_emptyList_showsEmptyPlaceholder() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        EventRepository mockRepo = mock(EventRepository.class);
+        doAnswer(inv -> {
+            EventRepository.UserReservationsCallback cb = inv.getArgument(1);
+            cb.onSuccess(Collections.emptyList());
+            return null;
+        }).when(mockRepo).getReservationsForUser(any(), any());
+        setField(activity, "eventRepository", mockRepo);
+
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
+            FirebaseUser mockUser = mock(FirebaseUser.class);
+            authMock.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+            when(mockAuth.getCurrentUser()).thenReturn(mockUser);
+            when(mockUser.getUid()).thenReturn("uid-test");
+
+            invokePrivateNoArg(activity, "loadReservations");
+        }
+
+        RecyclerView recyclerView = activity.findViewById(R.id.reservationsRecyclerView);
+        TextView emptyText = activity.findViewById(R.id.emptyText);
+        assertEquals(View.GONE, recyclerView.getVisibility());
+        assertEquals(View.VISIBLE, emptyText.getVisibility());
+    }
+
+    @Test
+    public void loadReservations_loggedInUser_withReservations_showsRecyclerView() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        Reservation res = buildReservation(ReservationStatus.CONFIRMED.toFirestoreValue(), null);
+        EventRepository mockRepo = mock(EventRepository.class);
+        doAnswer(inv -> {
+            EventRepository.UserReservationsCallback cb = inv.getArgument(1);
+            cb.onSuccess(Arrays.asList(res));
+            return null;
+        }).when(mockRepo).getReservationsForUser(any(), any());
+        setField(activity, "eventRepository", mockRepo);
+
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
+            FirebaseUser mockUser = mock(FirebaseUser.class);
+            authMock.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+            when(mockAuth.getCurrentUser()).thenReturn(mockUser);
+            when(mockUser.getUid()).thenReturn("uid-test");
+
+            invokePrivateNoArg(activity, "loadReservations");
+        }
+
+        RecyclerView recyclerView = activity.findViewById(R.id.reservationsRecyclerView);
+        assertEquals(View.VISIBLE, recyclerView.getVisibility());
+        assertEquals(1, recyclerView.getAdapter().getItemCount());
+    }
+
+    @Test
+    public void loadReservations_loggedInUser_repoError_showsErrorStatus() throws Exception {
+        MyReservationsActivity activity =
+                Robolectric.buildActivity(MyReservationsActivity.class).setup().get();
+
+        EventRepository mockRepo = mock(EventRepository.class);
+        doAnswer(inv -> {
+            EventRepository.UserReservationsCallback cb = inv.getArgument(1);
+            cb.onError("network failure");
+            return null;
+        }).when(mockRepo).getReservationsForUser(any(), any());
+        setField(activity, "eventRepository", mockRepo);
+
+        try (MockedStatic<FirebaseAuth> authMock = mockStatic(FirebaseAuth.class)) {
+            FirebaseAuth mockAuth = mock(FirebaseAuth.class);
+            FirebaseUser mockUser = mock(FirebaseUser.class);
+            authMock.when(FirebaseAuth::getInstance).thenReturn(mockAuth);
+            when(mockAuth.getCurrentUser()).thenReturn(mockUser);
+            when(mockUser.getUid()).thenReturn("uid-test");
+
+            invokePrivateNoArg(activity, "loadReservations");
+        }
+
+        TextView statusText = activity.findViewById(R.id.myReservationsStatus);
+        assertTrue(statusText.getText().toString().contains("network failure"));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void invokePrivateNoArg(Object target, String methodName) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        method.invoke(target);
     }
 
     private void invokePrivate(Object target, String methodName, Class<?> paramType, Object arg) throws Exception {

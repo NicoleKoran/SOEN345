@@ -215,6 +215,23 @@ public class EventRepositoryTest {
     }
 
     @Test
+    public void getEvent_fromSnapshotThrows_callsOnError() {
+        // Covers the catch(IllegalStateException) block in getEvent() (lines 64-65)
+        DocumentReference documentReference = mock(DocumentReference.class);
+        DocumentSnapshot snapshot = mock(DocumentSnapshot.class);
+        when(eventsCollection.document("bad-event")).thenReturn(documentReference);
+        when(documentReference.get()).thenReturn(Tasks.forResult(snapshot));
+        when(snapshot.exists()).thenReturn(true);
+        when(snapshot.getData()).thenReturn(null); // null data causes fromSnapshot() to throw
+
+        TestEventCallback callback = new TestEventCallback();
+        repository.getEvent("bad-event", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals("Event data is empty.", callback.errorMessage);
+    }
+
+    @Test
     public void getEvent_whenMissingReturnsNotFound() {
         DocumentReference documentReference = mock(DocumentReference.class);
         DocumentSnapshot snapshot = mock(DocumentSnapshot.class);
@@ -633,6 +650,50 @@ public class EventRepositoryTest {
         shadowOf(Looper.getMainLooper()).idle();
 
         assertEquals("confirmed query failed", callback.errorMessage);
+    }
+
+    @Test
+    public void getConfirmedReservationsForEvent_nullDocument_isSkipped() {
+        // toObject returns null → document is silently skipped
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot nullDoc = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("eventId", "evt-null")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(querySnapshot));
+        when(nullDoc.toObject(Reservation.class)).thenReturn(null);
+        when(querySnapshot.getDocuments()).thenReturn(List.of(nullDoc));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getConfirmedReservationsForEvent("evt-null", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertNotNull(callback.reservations);
+        assertEquals(0, callback.reservations.size()); // null doc skipped
+    }
+
+    @Test
+    public void getConfirmedReservationsForEvent_toObjectThrows_documentSkipped() {
+        // toObject throws a RuntimeException → caught, document skipped
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot querySnapshot = mock(QuerySnapshot.class);
+        DocumentSnapshot badDoc = mock(DocumentSnapshot.class);
+
+        when(reservationsCollection.whereEqualTo("eventId", "evt-bad")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(querySnapshot));
+        when(badDoc.toObject(Reservation.class)).thenThrow(new RuntimeException("parse error"));
+        when(querySnapshot.getDocuments()).thenReturn(List.of(badDoc));
+
+        TestUserReservationsCallback callback = new TestUserReservationsCallback();
+        repository.getConfirmedReservationsForEvent("evt-bad", callback);
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertNotNull(callback.reservations);
+        assertEquals(0, callback.reservations.size()); // malformed doc skipped
     }
 
     @Test
