@@ -52,4 +52,5 @@ jobs:
           profile: pixel_2
           emulator-boot-timeout: 900
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest --stacktrace --info
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew connectedDebugAndroidTest --stacktrace

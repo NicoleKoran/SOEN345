@@ -109,8 +109,8 @@ public class AdminCancelEventE2ETest {
             fillEventForm(scenario, "evt-test-2");
             onView(withId(R.id.cancelEventButton)).perform(click());
 
-            // Dialog title or message should reference the event or cancellation
-            onView(withText(containsString("Cancel"))).check(matches(isDisplayed()));
+            // Dialog positive button must show the updated label
+            onView(withText("Yes, Cancel Event")).check(matches(isDisplayed()));
         }
     }
 
@@ -171,7 +171,7 @@ public class AdminCancelEventE2ETest {
             onView(withId(R.id.cancelEventButton)).perform(click());
 
             // Confirm the dialog
-            onView(withText("Cancel Event")).perform(click());
+            onView(withText("Yes, Cancel Event")).perform(click());
 
             assertNotNull("cancelEventWithNotifications must be called", capturedEventId[0]);
             assertTrue("Event ID must be passed correctly",
@@ -209,7 +209,7 @@ public class AdminCancelEventE2ETest {
 
             fillEventForm(scenario, "evt-success-1");
             onView(withId(R.id.cancelEventButton)).perform(click());
-            onView(withText("Cancel Event")).perform(click());
+            onView(withText("Yes, Cancel Event")).perform(click());
 
             // Button must be gone after success
             onView(withId(R.id.cancelEventButton)).check(matches(not(isDisplayed())));
@@ -247,7 +247,7 @@ public class AdminCancelEventE2ETest {
 
             fillEventForm(scenario, "evt-fail-1");
             onView(withId(R.id.cancelEventButton)).perform(click());
-            onView(withText("Cancel Event")).perform(click());
+            onView(withText("Yes, Cancel Event")).perform(click());
 
             onView(withId(R.id.feedbackText))
                     .check(matches(withText(containsString("Network error"))));
