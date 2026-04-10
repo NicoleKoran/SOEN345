@@ -21,8 +21,8 @@ public class emailNotification implements NotificationListener {
 
     //api keys from EmailJS
     private static final String SERVICE_ID  = "service_lkkgoai";
-    private static final String TEMPLATE_ID = "template_mkcl7m5";
-    private static final String PUBLIC_KEY  = "H6TGxL56nWcxHnGeJ";
+    private static final String TEMPLATE_ID = "template_2ikwt2u";
+    private static final String PUBLIC_KEY  = "uyeEbo2-ZzNb5hfY9";
 
     private static final String EMAILJS_URL =
             "https://api.emailjs.com/api/v1.0/email/send";
