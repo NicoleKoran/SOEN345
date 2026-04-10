@@ -48,6 +48,8 @@ public class BookingActivity extends AppCompatActivity {
 
         confirmBtn.setOnClickListener(v -> confirmBooking());
 
+        findViewById(R.id.backButton).setOnClickListener(v -> finish());
+
         // ── Receive the event from EventAdapter via Intent ────────────────────
         String eventId       = getIntent().getStringExtra("eventId");
         String eventTitle    = getIntent().getStringExtra("eventTitle");
