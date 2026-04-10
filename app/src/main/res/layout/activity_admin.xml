@@ -290,7 +290,17 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:backgroundTint="#E65100"
-                android:text="Cancel Event &amp; Notify Customers"
+                android:text="Cancel Event"
+                android:textColor="#FFFFFF"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/uncancelEventButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#458500"
+                android:text="Un-cancel Event"
                 android:textColor="#FFFFFF"
                 android:visibility="gone" />
 
@@ -300,8 +310,9 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:backgroundTint="#C62828"
-                android:text="@string/cancel_event"
-                android:textColor="#FFFFFF" />
+                android:text="Delete Event"
+                android:textColor="#FFFFFF"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/feedbackText"

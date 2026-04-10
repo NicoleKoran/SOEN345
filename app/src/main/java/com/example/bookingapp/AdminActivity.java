@@ -55,6 +55,7 @@ public class AdminActivity extends AppCompatActivity {
     private Button updateEventButton;
     private Button viewReservationsButton;
     private Button cancelEventButton;
+    private Button uncancelEventButton;
     private Button deleteEventButton;
     private BookingRepository bookingRepository;
     private TextView reservationsLabel;
@@ -106,6 +107,7 @@ public class AdminActivity extends AppCompatActivity {
         updateEventButton = findViewById(R.id.updateEventButton);
         viewReservationsButton = findViewById(R.id.viewReservationsButton);
         cancelEventButton = findViewById(R.id.cancelEventButton);
+        uncancelEventButton = findViewById(R.id.uncancelEventButton);
         deleteEventButton = findViewById(R.id.deleteEventButton);
         reservationsLabel = findViewById(R.id.reservationsLabel);
         statusLabel = findViewById(R.id.statusLabel);
@@ -176,6 +178,7 @@ public class AdminActivity extends AppCompatActivity {
         updateEventButton.setOnClickListener(view -> updateEvent());
         viewReservationsButton.setOnClickListener(view -> viewReservations());
         cancelEventButton.setOnClickListener(view -> promptCancelEvent());
+        uncancelEventButton.setOnClickListener(view -> promptUncancelEvent());
         deleteEventButton.setOnClickListener(view -> promptDeleteWithPassword());
 
         titleInput.addTextChangedListener(new TextWatcher() {
@@ -396,15 +399,62 @@ public class AdminActivity extends AppCompatActivity {
         String eventTitle = titleInput.getText().toString().trim();
         String eventLocation = locationInput.getText().toString().trim();
         String eventDate = dateInput.getText().toString().trim();
+        String displayName = eventTitle.isEmpty() ? eventId : eventTitle;
 
         new AlertDialog.Builder(this)
                 .setTitle("Cancel Event")
-                .setMessage("Cancel '" + (eventTitle.isEmpty() ? eventId : eventTitle)
-                        + "'? All customers with confirmed reservations will be notified by email.")
-                .setPositiveButton("Cancel Event", (dialog, which) ->
+                .setMessage("Are you sure you want to cancel \"" + displayName + "\"?\n\n"
+                        + "⚠️ All customers with confirmed reservations will be notified by email "
+                        + "and their reservations will be automatically cancelled.")
+                .setPositiveButton("Yes, Cancel Event", (dialog, which) ->
                         doCancelEvent(eventId, eventTitle, eventLocation, eventDate))
-                .setNegativeButton(android.R.string.cancel, null)
+                .setNegativeButton("Go Back", null)
                 .show();
+    }
+
+    private void promptUncancelEvent() {
+        String eventId = readEventId();
+        if (eventId.isEmpty()) {
+            showError("Load an event before un-cancelling it.");
+            return;
+        }
+
+        String eventTitle = titleInput.getText().toString().trim();
+        String displayName = eventTitle.isEmpty() ? eventId : eventTitle;
+
+        new AlertDialog.Builder(this)
+                .setTitle("Restore Event")
+                .setMessage("Restore \"" + displayName + "\" and set it back to available?")
+                .setPositiveButton("Yes, Restore", (dialog, which) -> doUncancelEvent(eventId))
+                .setNegativeButton("Go Back", null)
+                .show();
+    }
+
+    private void doUncancelEvent(String eventId) {
+        eventRepository.getEvent(eventId, new EventRepository.EventCallback() {
+            @Override
+            public void onSuccess(Event event) {
+                Event restored = new Event(
+                        event.getEventId(), event.getTitle(), event.getDescription(),
+                        event.getLocation(), event.getDate(), event.getTotalSeats(),
+                        event.getTotalSeats(), event.getCategory(),
+                        EventStatus.AVAILABLE);
+                eventRepository.updateEvent(restored, new EventRepository.MessageCallback() {
+                    @Override
+                    public void onSuccess(String message) {
+                        cancelEventButton.setVisibility(android.view.View.VISIBLE);
+                        uncancelEventButton.setVisibility(android.view.View.GONE);
+                        setSpinnerValue(statusSpinner, EventStatus.AVAILABLE.toFirestoreValue());
+                        feedbackText.setText("Event restored and set to available.");
+                        feedbackText.setTextColor(getColor(android.R.color.holo_green_dark));
+                    }
+                    @Override
+                    public void onError(String message) { showError(message); }
+                });
+            }
+            @Override
+            public void onError(String message) { showError(message); }
+        });
     }
 
     private void doCancelEvent(String eventId, String eventTitle,
@@ -415,6 +465,7 @@ public class AdminActivity extends AppCompatActivity {
                     @Override
                     public void onSuccess(String message) {
                         cancelEventButton.setVisibility(android.view.View.GONE);
+                        uncancelEventButton.setVisibility(android.view.View.VISIBLE);
                         showSuccess(message);
                         feedbackText.setText(message);
                         feedbackText.setTextColor(getColor(android.R.color.holo_green_dark));
@@ -448,7 +499,9 @@ public class AdminActivity extends AppCompatActivity {
         addEventButton.setVisibility(android.view.View.GONE);
         updateEventButton.setVisibility(android.view.View.VISIBLE);
         viewReservationsButton.setVisibility(android.view.View.VISIBLE);
-        cancelEventButton.setVisibility(android.view.View.VISIBLE);
+        boolean isCancelled = event.getStatus() == EventStatus.CANCELLED;
+        cancelEventButton.setVisibility(isCancelled ? android.view.View.GONE : android.view.View.VISIBLE);
+        uncancelEventButton.setVisibility(isCancelled ? android.view.View.VISIBLE : android.view.View.GONE);
         deleteEventButton.setVisibility(android.view.View.VISIBLE);
         statusLabel.setVisibility(android.view.View.VISIBLE);
         statusSpinner.setVisibility(android.view.View.VISIBLE);
@@ -477,6 +530,7 @@ public class AdminActivity extends AppCompatActivity {
         updateEventButton.setVisibility(android.view.View.GONE);
         viewReservationsButton.setVisibility(android.view.View.GONE);
         cancelEventButton.setVisibility(android.view.View.GONE);
+        uncancelEventButton.setVisibility(android.view.View.GONE);
         deleteEventButton.setVisibility(android.view.View.GONE);
         statusLabel.setVisibility(android.view.View.GONE);
         statusSpinner.setVisibility(android.view.View.GONE);
