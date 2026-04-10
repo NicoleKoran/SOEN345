@@ -20,7 +20,7 @@ public class emailNotification implements NotificationListener {
     private static final String TAG = "emailNotification";
 
     //api keys from EmailJS
-    private static final String SERVICE_ID  = "service_lkkgoai";
+    private static final String SERVICE_ID  = "service_xzg9d03";
     private static final String TEMPLATE_ID = "template_2ikwt2u";
     private static final String PUBLIC_KEY  = "uyeEbo2-ZzNb5hfY9";
 
