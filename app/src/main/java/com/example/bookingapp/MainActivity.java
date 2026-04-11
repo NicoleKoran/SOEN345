@@ -28,6 +28,20 @@ public class MainActivity extends AppCompatActivity {
     public static final String EXTRA_IS_ADMIN = "extra_is_admin";
     public static final String KEY_PENDING_DELETE_EVENT_NAME = "pending_delete_event_name";
 
+    /**
+     * Set to {@code true} in instrumented tests to suppress the onStart redirect to
+     * LoginActivity when there is no signed-in user.  Must be reset to {@code false}
+     * in {@code @After} to avoid polluting other tests.
+     */
+    public static boolean skipRedirectForTesting = false;
+
+    /**
+     * Set to {@code true} in instrumented tests to skip FirebaseFirestore initialization
+     * in {@code onCreate()} and skip loading events from Firestore.  Must be reset to
+     * {@code false} in {@code @After} to avoid polluting other tests.
+     */
+    public static boolean skipFirestoreForTesting = false;
+
     RecyclerView recyclerView;
     EventAdapter adapter;
     List<Event> allEvents = new ArrayList<>();
@@ -50,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        if (user == null && !isAdminSessionPersisted()) {
+        if (!skipRedirectForTesting && user == null && !isAdminSessionPersisted()) {
             startActivity(new Intent(this, LoginActivity.class));
             finish();
         }
@@ -70,7 +84,9 @@ public class MainActivity extends AppCompatActivity {
 
 
         super.onCreate(savedInstanceState);
-        db = FirebaseFirestore.getInstance();
+        if (!skipFirestoreForTesting) {
+            db = FirebaseFirestore.getInstance();
+        }
         setContentView(R.layout.activity_main);
         isAdmin = resolveAdminMode();
 
@@ -91,6 +107,14 @@ public class MainActivity extends AppCompatActivity {
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
         });
+
+        // US-10: Show "My Bookings" for non-admin customers
+        Button myReservationsBtn = findViewById(R.id.myReservationsBtn);
+        if (!isAdmin) {
+            myReservationsBtn.setVisibility(View.VISIBLE);
+            myReservationsBtn.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, MyReservationsActivity.class)));
+        }
 
         if (isAdmin) {
             addEventBtn.setVisibility(View.VISIBLE);
@@ -286,6 +310,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadEvents() {
+        if (db == null) return;
         db.collection("events").get().addOnSuccessListener(snap -> {
             allEvents.clear();
             for (DocumentSnapshot doc : snap) {

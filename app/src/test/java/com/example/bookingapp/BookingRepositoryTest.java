@@ -18,7 +18,12 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.Transaction;
+import com.google.firebase.firestore.WriteBatch;
+
+import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -588,6 +593,715 @@ public class BookingRepositoryTest {
 
         ShadowLooper.idleMainLooper();
         assertEquals("Date TBD", dateOut[0]);
+    }
+
+    // ── cancelReservation ─────────────────────────────────────────────────────
+
+    /**
+     * Stubs a Firestore transaction that reads two document refs.
+     * Used by cancelReservation tests which read both the event and the reservation.
+     */
+    @SuppressWarnings("unchecked")
+    private void stubTwoDocTransaction(
+            FirebaseFirestore db,
+            DocumentReference ref1, DocumentSnapshot snap1,
+            DocumentReference ref2, DocumentSnapshot snap2
+    ) {
+        Transaction tx = mock(Transaction.class);
+        try {
+            doReturn(snap1).when(tx).get(ref1);
+            doReturn(snap2).when(tx).get(ref2);
+        } catch (FirebaseFirestoreException e) {
+            throw new AssertionError(e);
+        }
+        when(db.runTransaction(any(Transaction.Function.class))).thenAnswer(invocation -> {
+            Transaction.Function<Object> fn = invocation.getArgument(0);
+            try {
+                fn.apply(tx);
+                return Tasks.forResult(null);
+            } catch (FirebaseFirestoreException e) {
+                return Tasks.forException(e);
+            }
+        });
+    }
+
+    @Test
+    public void cancelReservation_success_callsOnSuccess() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(resCol.document("res-1")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(true);
+        when(eventSnap.getString("status")).thenReturn(EventStatus.AVAILABLE.toFirestoreValue());
+        when(eventSnap.getLong("availableSeats")).thenReturn(5L);
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(true);
+        when(reservationSnap.getString("status")).thenReturn(ReservationStatus.CONFIRMED.toFirestoreValue());
+
+        stubTwoDocTransaction(db, eventRef, eventSnap, reservationRef, reservationSnap);
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] result = {null};
+
+        repo.cancelReservation("res-1", "evt-1", "user@test.com",
+                "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { result[0] = msg; }
+                    @Override public void onFailure(String msg) { fail("Unexpected failure: " + msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(result[0]);
+        assertTrue(result[0].contains("cancelled"));
+    }
+
+    @Test
+    public void cancelReservation_alreadyCancelled_callsOnFailure() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(resCol.document("res-1")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(true);
+        when(eventSnap.getString("status")).thenReturn(EventStatus.AVAILABLE.toFirestoreValue());
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(true);
+        when(reservationSnap.getString("status"))
+                .thenReturn(ReservationStatus.CANCELLED.toFirestoreValue());
+
+        stubTwoDocTransaction(db, eventRef, eventSnap, reservationRef, reservationSnap);
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] err = {null};
+
+        repo.cancelReservation("res-1", "evt-1", "user@test.com",
+                "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { fail("Should not succeed"); }
+                    @Override public void onFailure(String msg) { err[0] = msg; }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(err[0]);
+        assertTrue(err[0].toLowerCase().contains("already cancelled"));
+    }
+
+    @Test
+    public void cancelReservation_eventNotFound_callsOnFailure() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-missing")).thenReturn(eventRef);
+        when(resCol.document("res-1")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(false);
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(true);
+
+        stubTwoDocTransaction(db, eventRef, eventSnap, reservationRef, reservationSnap);
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] err = {null};
+
+        repo.cancelReservation("res-1", "evt-missing", "user@test.com",
+                "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { fail("Should not succeed"); }
+                    @Override public void onFailure(String msg) { err[0] = msg; }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(err[0]);
+        assertTrue(err[0].contains("Event not found"));
+    }
+
+    @Test
+    public void cancelReservation_soldOutEvent_restoresAvailableStatus() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(resCol.document("res-1")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(true);
+        when(eventSnap.getString("status")).thenReturn(EventStatus.SOLDOUT.toFirestoreValue());
+        when(eventSnap.getLong("availableSeats")).thenReturn(0L);
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(true);
+        when(reservationSnap.getString("status")).thenReturn(ReservationStatus.CONFIRMED.toFirestoreValue());
+
+        Transaction tx = mock(Transaction.class);
+        try {
+            doReturn(eventSnap).when(tx).get(eventRef);
+            doReturn(reservationSnap).when(tx).get(reservationRef);
+        } catch (FirebaseFirestoreException e) {
+            throw new AssertionError(e);
+        }
+        when(db.runTransaction(any(Transaction.Function.class))).thenAnswer(invocation -> {
+            Transaction.Function<Object> fn = invocation.getArgument(0);
+            try { fn.apply(tx); return Tasks.forResult(null); }
+            catch (FirebaseFirestoreException e) { return Tasks.forException(e); }
+        });
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final boolean[] ok = {false};
+
+        repo.cancelReservation("res-1", "evt-1", "user@test.com",
+                "Concert", "MTL", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { ok[0] = true; }
+                    @Override public void onFailure(String msg) { fail(msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertTrue(ok[0]);
+        // Verify seat count was incremented and status was restored to available
+        verify(tx).update(eventRef, "availableSeats", 1L);
+        verify(tx).update(eventRef, "status", EventStatus.AVAILABLE.toFirestoreValue());
+    }
+
+    // ── SimpleCallback interface contract ──────────────────────────────────────
+
+    @Test
+    public void simpleCallback_onSuccess_deliversMessage() {
+        final String[] captured = {null};
+        BookingRepository.SimpleCallback cb = new BookingRepository.SimpleCallback() {
+            @Override public void onSuccess(String message) { captured[0] = message; }
+            @Override public void onFailure(String errorMessage) { fail("Should not fail"); }
+        };
+        cb.onSuccess("Done");
+        assertEquals("Done", captured[0]);
+    }
+
+    @Test
+    public void simpleCallback_onFailure_deliversMessage() {
+        final String[] captured = {null};
+        BookingRepository.SimpleCallback cb = new BookingRepository.SimpleCallback() {
+            @Override public void onSuccess(String message) { fail("Should not succeed"); }
+            @Override public void onFailure(String errorMessage) { captured[0] = errorMessage; }
+        };
+        cb.onFailure("Something broke");
+        assertEquals("Something broke", captured[0]);
+    }
+
+    // ── cancelEventWithNotifications ─────────────────────────────────────────
+
+    @Test
+    public void cancelEventWithNotifications_noReservations_reportsNoCustomers() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        // cancelEvent path
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        DocumentReference eventRef = mock(DocumentReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                .thenReturn(Tasks.forResult(null));
+
+        // getConfirmedReservationsForEvent path — empty
+        CollectionReference resCol = mock(CollectionReference.class);
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot emptySnap = mock(QuerySnapshot.class);
+        when(db.collection("reservations")).thenReturn(resCol);
+        when(resCol.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(emptySnap));
+        when(emptySnap.getDocuments()).thenReturn(List.of());
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] result = {null};
+
+        repo.cancelEventWithNotifications("evt-1", "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { result[0] = msg; }
+                    @Override public void onFailure(String msg) { fail("Unexpected: " + msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(result[0]);
+        assertTrue(result[0].contains("No customers to notify"));
+    }
+
+    @Test
+    public void cancelEventWithNotifications_withReservations_batchCancelsAndNotifies() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        // cancelEvent path
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        DocumentReference eventRef = mock(DocumentReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                .thenReturn(Tasks.forResult(null));
+
+        // getConfirmedReservationsForEvent path — one reservation
+        CollectionReference resCol = mock(CollectionReference.class);
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot snap = mock(QuerySnapshot.class);
+        DocumentSnapshot resDoc = mock(DocumentSnapshot.class);
+
+        Reservation confirmedRes = new Reservation(
+                "evt-1", "concert", "user-1", "user@test.com",
+                "Jazz Night", "Montreal", new Date(), 0);
+        confirmedRes.setReservationId("res-1");
+
+        when(db.collection("reservations")).thenReturn(resCol);
+        when(resCol.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(snap));
+        when(snap.getDocuments()).thenReturn(List.of(resDoc));
+        when(resDoc.getId()).thenReturn("res-1");
+        when(resDoc.toObject(Reservation.class)).thenReturn(confirmedRes);
+
+        // batch path
+        WriteBatch mockBatch = mock(WriteBatch.class);
+        DocumentReference resRef = mock(DocumentReference.class);
+        when(db.batch()).thenReturn(mockBatch);
+        when(resCol.document("res-1")).thenReturn(resRef);
+        when(mockBatch.update(any(DocumentReference.class), anyString(), any(), anyString(), any()))
+                .thenReturn(mockBatch);
+        when(mockBatch.commit()).thenReturn(Tasks.forResult(null));
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] result = {null};
+
+        repo.cancelEventWithNotifications("evt-1", "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { result[0] = msg; }
+                    @Override public void onFailure(String msg) { fail("Unexpected: " + msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(result[0]);
+        assertTrue(result[0].contains("1 customer"));
+        verify(mockBatch).commit();
+    }
+
+    @Test
+    public void cancelEventWithNotifications_eventCancelFails_callsOnFailure() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        DocumentReference eventRef = mock(DocumentReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(eventsCol.document("evt-bad")).thenReturn(eventRef);
+        when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                .thenReturn(Tasks.forException(new RuntimeException("network error")));
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] err = {null};
+
+        repo.cancelEventWithNotifications("evt-bad", "Show", "MTL", "Apr 1, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { fail("Should not succeed"); }
+                    @Override public void onFailure(String msg) { err[0] = msg; }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(err[0]);
+        assertTrue(err[0].contains("network error"));
+    }
+
+    @Test
+    public void cancelReservation_cancelledEvent_doesNotRestoreSeats() {
+        // When the event itself is cancelled, we must NOT try to restore seat counts.
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-cancelled")).thenReturn(eventRef);
+        when(resCol.document("res-1")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(true);
+        when(eventSnap.getString("status")).thenReturn(EventStatus.CANCELLED.toFirestoreValue());
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(true);
+        when(reservationSnap.getString("status")).thenReturn(ReservationStatus.CONFIRMED.toFirestoreValue());
+
+        Transaction tx = mock(Transaction.class);
+        try {
+            doReturn(eventSnap).when(tx).get(eventRef);
+            doReturn(reservationSnap).when(tx).get(reservationRef);
+        } catch (com.google.firebase.firestore.FirebaseFirestoreException e) {
+            throw new AssertionError(e);
+        }
+        when(db.runTransaction(any(Transaction.Function.class))).thenAnswer(invocation -> {
+            Transaction.Function<Object> fn = invocation.getArgument(0);
+            try { fn.apply(tx); return Tasks.forResult(null); }
+            catch (com.google.firebase.firestore.FirebaseFirestoreException e) {
+                return Tasks.forException(e);
+            }
+        });
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final boolean[] ok = {false};
+
+        repo.cancelReservation("res-1", "evt-cancelled", "user@test.com",
+                "Show", "MTL", "Apr 1, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { ok[0] = true; }
+                    @Override public void onFailure(String msg) { fail(msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertTrue(ok[0]);
+        // Seat count should NOT be updated because the event is already cancelled
+        verify(tx, org.mockito.Mockito.never()).update(eq(eventRef), eq("availableSeats"), any());
+    }
+
+    @Test
+    public void cancelEventWithNotifications_reservationWithNoEmail_skipsEmailButStillSucceeds() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        DocumentReference eventRef = mock(DocumentReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                .thenReturn(Tasks.forResult(null));
+
+        CollectionReference resCol = mock(CollectionReference.class);
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot snap = mock(QuerySnapshot.class);
+        DocumentSnapshot resDoc = mock(DocumentSnapshot.class);
+
+        // Reservation with null email — the email loop should skip it
+        Reservation noEmailRes = new Reservation(
+                "evt-1", "concert", "user-1", null,
+                "Jazz Night", "Montreal", new Date(), 0);
+        noEmailRes.setReservationId("res-no-email");
+
+        when(db.collection("reservations")).thenReturn(resCol);
+        when(resCol.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(snap));
+        when(snap.getDocuments()).thenReturn(List.of(resDoc));
+        when(resDoc.getId()).thenReturn("res-no-email");
+        when(resDoc.toObject(Reservation.class)).thenReturn(noEmailRes);
+
+        WriteBatch mockBatch = mock(WriteBatch.class);
+        DocumentReference noEmailRef = mock(DocumentReference.class);
+        when(db.batch()).thenReturn(mockBatch);
+        when(resCol.document("res-no-email")).thenReturn(noEmailRef);
+        when(mockBatch.update(any(DocumentReference.class), anyString(), any(), anyString(), any()))
+                .thenReturn(mockBatch);
+        when(mockBatch.commit()).thenReturn(Tasks.forResult(null));
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] result = {null};
+
+        repo.cancelEventWithNotifications("evt-1", "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { result[0] = msg; }
+                    @Override public void onFailure(String msg) { fail("Unexpected: " + msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(result[0]);
+        assertTrue(result[0].contains("customer"));
+    }
+
+    @Test
+    public void cancelEventWithNotifications_reservationWithEmptyEmail_continueSkipsEmail() {
+        // Exercises the isEmpty() branch of the null-or-empty email guard (line 327 continue)
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        DocumentReference eventRef = mock(DocumentReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                .thenReturn(Tasks.forResult(null));
+
+        CollectionReference resCol = mock(CollectionReference.class);
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        QuerySnapshot snap = mock(QuerySnapshot.class);
+        DocumentSnapshot resDoc = mock(DocumentSnapshot.class);
+
+        // Empty-string email — triggers the isEmpty() condition branch → continue
+        Reservation emptyEmailRes = new Reservation(
+                "evt-1", "concert", "user-2", "",
+                "Jazz Night", "Montreal", new Date(), 0);
+        emptyEmailRes.setReservationId("res-empty-email");
+
+        when(db.collection("reservations")).thenReturn(resCol);
+        when(resCol.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue()))
+                .thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forResult(snap));
+        when(snap.getDocuments()).thenReturn(List.of(resDoc));
+        when(resDoc.getId()).thenReturn("res-empty-email");
+        when(resDoc.toObject(Reservation.class)).thenReturn(emptyEmailRes);
+
+        WriteBatch mockBatch = mock(WriteBatch.class);
+        DocumentReference emptyEmailRef = mock(DocumentReference.class);
+        when(db.batch()).thenReturn(mockBatch);
+        when(resCol.document("res-empty-email")).thenReturn(emptyEmailRef);
+        when(mockBatch.update(any(DocumentReference.class), anyString(), any(), anyString(), any()))
+                .thenReturn(mockBatch);
+        when(mockBatch.commit()).thenReturn(Tasks.forResult(null));
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] result = {null};
+
+        repo.cancelEventWithNotifications("evt-1", "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { result[0] = msg; }
+                    @Override public void onFailure(String msg) { fail("Unexpected: " + msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(result[0]);
+        assertTrue(result[0].contains("customer")); // reservation counted but email skipped
+    }
+
+    @Test
+    public void cancelEventWithNotifications_getReservationsFails_callsOnSuccessWithError() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        DocumentReference eventRef = mock(DocumentReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                .thenReturn(Tasks.forResult(null));
+
+        CollectionReference resCol = mock(CollectionReference.class);
+        Query q1 = mock(Query.class);
+        Query q2 = mock(Query.class);
+        when(db.collection("reservations")).thenReturn(resCol);
+        when(resCol.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+        when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue())).thenReturn(q2);
+        when(q2.get()).thenReturn(Tasks.forException(new RuntimeException("Firestore unavailable")));
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] result = {null};
+
+        repo.cancelEventWithNotifications("evt-1", "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { result[0] = msg; }
+                    @Override public void onFailure(String msg) { fail("Expected onSuccess with error msg"); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(result[0]);
+        // Event was cancelled but notification failed — still calls onSuccess with error note
+        assertTrue(result[0].contains("notification error"));
+    }
+
+    // ── cancelReservation: reservation-not-found path ────────────────────────
+
+    @Test
+    public void cancelReservation_reservationNotFound_callsOnFailure() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(resCol.document("res-missing")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(true);
+        when(eventSnap.getString("status")).thenReturn(EventStatus.AVAILABLE.toFirestoreValue());
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(false); // reservation missing
+
+        stubTwoDocTransaction(db, eventRef, eventSnap, reservationRef, reservationSnap);
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final String[] err = {null};
+
+        repo.cancelReservation("res-missing", "evt-1", "user@test.com",
+                "Jazz Night", "Montreal", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { fail("Should not succeed"); }
+                    @Override public void onFailure(String msg) { err[0] = msg; }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertNotNull(err[0]);
+        assertTrue(err[0].contains("Reservation not found"));
+    }
+
+    @Test
+    public void cancelReservation_nullAvailableSeats_incrementsFromZero() {
+        FirebaseFirestore db = mock(FirebaseFirestore.class);
+        FirebaseAuth auth = mock(FirebaseAuth.class);
+
+        CollectionReference eventsCol = mock(CollectionReference.class);
+        CollectionReference resCol = mock(CollectionReference.class);
+        when(db.collection("events")).thenReturn(eventsCol);
+        when(db.collection("reservations")).thenReturn(resCol);
+
+        DocumentReference eventRef = mock(DocumentReference.class);
+        DocumentReference reservationRef = mock(DocumentReference.class);
+        when(eventsCol.document("evt-1")).thenReturn(eventRef);
+        when(resCol.document("res-1")).thenReturn(reservationRef);
+
+        DocumentSnapshot eventSnap = mock(DocumentSnapshot.class);
+        when(eventSnap.exists()).thenReturn(true);
+        when(eventSnap.getString("status")).thenReturn(EventStatus.AVAILABLE.toFirestoreValue());
+        when(eventSnap.getLong("availableSeats")).thenReturn(null); // null → treated as 0
+
+        DocumentSnapshot reservationSnap = mock(DocumentSnapshot.class);
+        when(reservationSnap.exists()).thenReturn(true);
+        when(reservationSnap.getString("status"))
+                .thenReturn(ReservationStatus.CONFIRMED.toFirestoreValue());
+
+        Transaction tx = mock(Transaction.class);
+        try {
+            doReturn(eventSnap).when(tx).get(eventRef);
+            doReturn(reservationSnap).when(tx).get(reservationRef);
+        } catch (FirebaseFirestoreException e) {
+            throw new AssertionError(e);
+        }
+        when(db.runTransaction(any(Transaction.Function.class))).thenAnswer(invocation -> {
+            Transaction.Function<Object> fn = invocation.getArgument(0);
+            try { fn.apply(tx); return Tasks.forResult(null); }
+            catch (FirebaseFirestoreException e) { return Tasks.forException(e); }
+        });
+
+        BookingRepository repo = new BookingRepository(db, auth);
+        final boolean[] ok = {false};
+
+        repo.cancelReservation("res-1", "evt-1", "user@test.com",
+                "Concert", "MTL", "Apr 12, 2026",
+                new BookingRepository.SimpleCallback() {
+                    @Override public void onSuccess(String msg) { ok[0] = true; }
+                    @Override public void onFailure(String msg) { fail(msg); }
+                });
+
+        ShadowLooper.idleMainLooper();
+        assertTrue(ok[0]);
+        // null availableSeats treated as 0, so 0 + 1 = 1
+        verify(tx).update(eventRef, "availableSeats", 1L);
+    }
+
+    // ── cancelEventWithNotifications: batch commit failure path ───────────────
+
+    @Test
+    public void cancelEventWithNotifications_batchCommitFails_logsErrorButStillSucceeds() {
+        try (MockedStatic<Log> log = mockStatic(Log.class)) {
+            FirebaseFirestore db = mock(FirebaseFirestore.class);
+            FirebaseAuth auth = mock(FirebaseAuth.class);
+
+            CollectionReference eventsCol = mock(CollectionReference.class);
+            DocumentReference eventRef = mock(DocumentReference.class);
+            when(db.collection("events")).thenReturn(eventsCol);
+            when(eventsCol.document("evt-1")).thenReturn(eventRef);
+            when(eventRef.update("status", EventStatus.CANCELLED.toFirestoreValue()))
+                    .thenReturn(Tasks.forResult(null));
+
+            CollectionReference resCol = mock(CollectionReference.class);
+            Query q1 = mock(Query.class);
+            Query q2 = mock(Query.class);
+            QuerySnapshot snap = mock(QuerySnapshot.class);
+            DocumentSnapshot resDoc = mock(DocumentSnapshot.class);
+
+            Reservation confirmedRes = new Reservation(
+                    "evt-1", "concert", "user-1", "user@test.com",
+                    "Jazz Night", "Montreal", new Date(), 0);
+            confirmedRes.setReservationId("res-1");
+
+            when(db.collection("reservations")).thenReturn(resCol);
+            when(resCol.whereEqualTo("eventId", "evt-1")).thenReturn(q1);
+            when(q1.whereEqualTo("status", ReservationStatus.CONFIRMED.toFirestoreValue()))
+                    .thenReturn(q2);
+            when(q2.get()).thenReturn(Tasks.forResult(snap));
+            when(snap.getDocuments()).thenReturn(List.of(resDoc));
+            when(resDoc.getId()).thenReturn("res-1");
+            when(resDoc.toObject(Reservation.class)).thenReturn(confirmedRes);
+
+            WriteBatch mockBatch = mock(WriteBatch.class);
+            DocumentReference resRef = mock(DocumentReference.class);
+            when(db.batch()).thenReturn(mockBatch);
+            when(resCol.document("res-1")).thenReturn(resRef);
+            when(mockBatch.update(any(DocumentReference.class), anyString(), any(), anyString(), any()))
+                    .thenReturn(mockBatch);
+            // Batch commit FAILS — Log.e should be called, but onSuccess still fires
+            when(mockBatch.commit())
+                    .thenReturn(Tasks.forException(new RuntimeException("batch failed")));
+
+            BookingRepository repo = new BookingRepository(db, auth);
+            final String[] result = {null};
+
+            repo.cancelEventWithNotifications("evt-1", "Jazz Night", "Montreal", "Apr 12, 2026",
+                    new BookingRepository.SimpleCallback() {
+                        @Override public void onSuccess(String msg) { result[0] = msg; }
+                        @Override public void onFailure(String msg) { fail("Unexpected: " + msg); }
+                    });
+
+            ShadowLooper.idleMainLooper();
+
+            assertNotNull(result[0]);
+            assertTrue(result[0].contains("1 customer"));
+            log.verify(() -> Log.e(eq("BookingRepository"),
+                    argThat((String msg) -> msg != null && msg.contains("Batch reservation cancel failed"))));
+        }
     }
 
     @Test

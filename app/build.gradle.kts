@@ -41,6 +41,11 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                // Prevent OOM when Robolectric spins up many Activity instances in CI
+                it.maxHeapSize = "2g"
+                it.jvmArgs("-XX:MaxMetaspaceSize=512m", "-noverify")
+            }
         }
     }
 }
@@ -67,6 +72,7 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation("androidx.test.espresso:espresso-intents:3.6.1")
+    androidTestImplementation("androidx.test.espresso:espresso-contrib:3.6.1")
     androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

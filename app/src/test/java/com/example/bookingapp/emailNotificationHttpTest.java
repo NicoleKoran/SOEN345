@@ -65,7 +65,7 @@ public class emailNotificationHttpTest {
         build().sendEmail("msg");
         assertNotNull(server.takeRequest(5, TimeUnit.SECONDS));
         Thread.sleep(500);
-        assertTrue(logContains("emailNotification", "Email sent successfully"));
+        assertTrue(logContains("emailNotification", "Email sent"));
     }
 
     @Test

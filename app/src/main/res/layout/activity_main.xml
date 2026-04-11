@@ -31,6 +31,17 @@
                 android:layout_weight="1"/>
 
             <Button
+                android:id="@+id/myReservationsBtn"
+                android:text="My Bookings"
+                android:textSize="12sp"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="#0F9D58"
+                android:textColor="#FFFFFF"
+                android:visibility="gone"/>
+
+            <Button
                 android:id="@+id/logoutBtn"
                 android:text="Logout"
                 android:textSize="12sp"

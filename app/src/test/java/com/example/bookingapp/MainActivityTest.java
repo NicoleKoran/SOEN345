@@ -110,6 +110,32 @@ public class MainActivityTest {
     }
 
     @Test
+    public void onCreate_nonAdmin_showsMyBookingsButton() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).create().get();
+        Button myBookingsButton = activity.findViewById(R.id.myReservationsBtn);
+        assertEquals(View.VISIBLE, myBookingsButton.getVisibility());
+    }
+
+    @Test
+    public void myReservationsButton_click_launchesMyReservationsActivity() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
+        activity.findViewById(R.id.myReservationsBtn).performClick();
+
+        Intent next = ShadowApplication.getInstance().getNextStartedActivity();
+        assertNotNull(next);
+        assertEquals(MyReservationsActivity.class.getName(), next.getComponent().getClassName());
+    }
+
+    @Test
+    public void onCreate_adminMode_hidesMyBookingsButton() {
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
+        Button myBookingsButton = activity.findViewById(R.id.myReservationsBtn);
+        assertEquals(View.GONE, myBookingsButton.getVisibility());
+    }
+
+    @Test
     public void onCreate_nonAdmin_hidesAddEventButton() {
         Button addEventButton = activity.findViewById(R.id.addEventBtn);
         assertEquals(View.GONE, addEventButton.getVisibility());
@@ -360,9 +386,14 @@ public class MainActivityTest {
         intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
         MainActivity activity = Robolectric.buildActivity(MainActivity.class, intent).setup().get();
 
+        // Capture whatever dialog state exists before our call (may be non-null from a
+        // previous test in the same JVM run — we only care that no NEW dialog appears).
+        AlertDialog before = ShadowAlertDialog.getLatestAlertDialog();
+
         invokePrivate(activity, "showPendingDeleteDialogIfNeeded");
 
-        assertNull(ShadowAlertDialog.getLatestAlertDialog());
+        assertEquals("No new dialog should appear when there is no pending delete",
+                before, ShadowAlertDialog.getLatestAlertDialog());
     }
 
     @Test

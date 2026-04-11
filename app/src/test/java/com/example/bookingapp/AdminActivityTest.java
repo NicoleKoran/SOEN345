@@ -1019,6 +1019,108 @@ public class AdminActivityTest {
         );
     }
 
+    // ── promptCancelEvent / doCancelEvent (US-14) ────────────────────────────
+
+    @Test
+    public void promptCancelEvent_withEmptyEventId_showsErrorInFeedback() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+        // eventIdInput is empty by default in add-mode
+
+        invokePrivate(activity, "promptCancelEvent");
+
+        TextView feedbackText = activity.findViewById(R.id.feedbackText);
+        assertEquals("Load an event before cancelling it.", feedbackText.getText().toString());
+    }
+
+    @Test
+    public void promptCancelEvent_withLoadedEvent_showsConfirmationDialog() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-1");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Jazz Night");
+        ((EditText) activity.findViewById(R.id.locationInput)).setText("Montreal");
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("2026-05-01 19:00");
+
+        invokePrivate(activity, "promptCancelEvent");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    @Test
+    public void promptCancelEvent_withEmptyTitle_usesEventIdInDialogMessage() throws Exception {
+        // Covers the eventTitle.isEmpty() ? eventId : eventTitle branch where title IS empty
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-007");
+        // titleInput deliberately left empty
+
+        invokePrivate(activity, "promptCancelEvent");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    @Test
+    public void doCancelEvent_onSuccess_hidesCancelButtonAndShowsFeedback() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+
+        // Inject mock repository that calls onSuccess
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        doAnswer(inv -> {
+            BookingRepository.SimpleCallback cb = inv.getArgument(4);
+            cb.onSuccess("Event cancelled. 2 customer(s) notified.");
+            return null;
+        }).when(mockRepo).cancelEventWithNotifications(any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+        setField(activity, "bookingRepository", mockRepo);
+
+        // Make cancelEventButton visible (simulating edit mode)
+        Button cancelBtn = activity.findViewById(R.id.cancelEventButton);
+        cancelBtn.setVisibility(View.VISIBLE);
+
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-1");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Jazz Night");
+        ((EditText) activity.findViewById(R.id.locationInput)).setText("Montreal");
+        ((EditText) activity.findViewById(R.id.dateInput)).setText("2026-05-01 19:00");
+
+        invokePrivate(activity, "promptCancelEvent");
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        assertEquals(View.GONE, cancelBtn.getVisibility());
+        TextView feedbackText = activity.findViewById(R.id.feedbackText);
+        assertTrue(feedbackText.getText().toString().contains("customer"));
+    }
+
+    @Test
+    public void doCancelEvent_onFailure_showsErrorFeedback() throws Exception {
+        AdminActivity activity = Robolectric.buildActivity(AdminActivity.class).setup().get();
+
+        BookingRepository mockRepo = mock(BookingRepository.class);
+        doAnswer(inv -> {
+            BookingRepository.SimpleCallback cb = inv.getArgument(4);
+            cb.onFailure("Network error");
+            return null;
+        }).when(mockRepo).cancelEventWithNotifications(any(), any(), any(), any(),
+                any(BookingRepository.SimpleCallback.class));
+        setField(activity, "bookingRepository", mockRepo);
+
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-fail");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Bad Show");
+
+        invokePrivate(activity, "promptCancelEvent");
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        shadowOf(Looper.getMainLooper()).idle();
+
+        TextView feedbackText = activity.findViewById(R.id.feedbackText);
+        assertEquals("Network error", feedbackText.getText().toString());
+    }
+
     private void fillValidForm(AdminActivity activity) {
         ((EditText) activity.findViewById(R.id.titleInput)).setText("Britney Spears");
         ((EditText) activity.findViewById(R.id.descriptionInput)).setText("Britney in Toronto!");
@@ -1071,5 +1173,199 @@ public class AdminActivityTest {
         Method method = target.getClass().getDeclaredMethod(methodName, firstType, secondType);
         method.setAccessible(true);
         return method.invoke(target, firstArgument, secondArgument);
+    }
+
+    // ── promptUncancelEvent / doUncancelEvent ────────────────────────────────
+
+    @Test
+    public void promptUncancelEvent_withEmptyEventId_showsError() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "promptUncancelEvent");
+
+        assertEquals("Load an event before un-cancelling it.",
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void promptUncancelEvent_withLoadedEvent_showsConfirmationDialog() throws Exception {
+        AdminActivity activity = buildActivity();
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-uncancel-1");
+        ((EditText) activity.findViewById(R.id.titleInput)).setText("Jazz Night");
+
+        invokePrivate(activity, "promptUncancelEvent");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    @Test
+    public void promptUncancelEvent_withEmptyTitle_usesEventIdInDialog() throws Exception {
+        AdminActivity activity = buildActivity();
+        ((EditText) activity.findViewById(R.id.eventIdInput)).setText("evt-007");
+        // title left empty — should use event ID in message
+
+        invokePrivate(activity, "promptUncancelEvent");
+
+        AlertDialog dialog = ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(dialog);
+        assertTrue(dialog.isShowing());
+    }
+
+    @Test
+    public void doUncancelEvent_onSuccess_showsCancelButtonAndHidesUncancel() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        EventRepository mockRepo = mock(EventRepository.class);
+        setField(activity, "eventRepository", mockRepo);
+
+        Event cancelledEvent = new Event(
+                "evt-c1", "Jazz Night", "desc", "Montreal",
+                new Date(), 200, 0, EventCategory.CONCERT, EventStatus.CANCELLED);
+
+        doAnswer(inv -> {
+            EventRepository.EventCallback cb = inv.getArgument(1);
+            cb.onSuccess(cancelledEvent);
+            return null;
+        }).when(mockRepo).getEvent(eq("evt-c1"), any(EventRepository.EventCallback.class));
+
+        doAnswer(inv -> {
+            EventRepository.MessageCallback cb = inv.getArgument(1);
+            cb.onSuccess("Updated.");
+            return null;
+        }).when(mockRepo).updateEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+
+        // Make uncancel button visible
+        activity.findViewById(R.id.uncancelEventButton).setVisibility(View.VISIBLE);
+        activity.findViewById(R.id.cancelEventButton).setVisibility(View.GONE);
+
+        invokePrivate(activity, "doUncancelEvent", String.class, "evt-c1");
+        org.robolectric.shadows.ShadowLooper.idleMainLooper();
+
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.cancelEventButton).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.uncancelEventButton).getVisibility());
+        assertTrue(((TextView) activity.findViewById(R.id.feedbackText))
+                .getText().toString().contains("restored"));
+    }
+
+    @Test
+    public void doUncancelEvent_getEventError_showsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        EventRepository mockRepo = mock(EventRepository.class);
+        setField(activity, "eventRepository", mockRepo);
+
+        doAnswer(inv -> {
+            EventRepository.EventCallback cb = inv.getArgument(1);
+            cb.onError("Not found.");
+            return null;
+        }).when(mockRepo).getEvent(eq("evt-err"), any(EventRepository.EventCallback.class));
+
+        invokePrivate(activity, "doUncancelEvent", String.class, "evt-err");
+        org.robolectric.shadows.ShadowLooper.idleMainLooper();
+
+        assertEquals("Not found.",
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void doUncancelEvent_updateEventError_showsFeedback() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        EventRepository mockRepo = mock(EventRepository.class);
+        setField(activity, "eventRepository", mockRepo);
+
+        Event cancelledEvent = new Event(
+                "evt-upderr", "Jazz Night", "desc", "Montreal",
+                new Date(), 200, 0, EventCategory.CONCERT, EventStatus.CANCELLED);
+
+        doAnswer(inv -> {
+            EventRepository.EventCallback cb = inv.getArgument(1);
+            cb.onSuccess(cancelledEvent);
+            return null;
+        }).when(mockRepo).getEvent(eq("evt-upderr"), any(EventRepository.EventCallback.class));
+
+        doAnswer(inv -> {
+            EventRepository.MessageCallback cb = inv.getArgument(1);
+            cb.onError("Update failed.");
+            return null;
+        }).when(mockRepo).updateEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+
+        invokePrivate(activity, "doUncancelEvent", String.class, "evt-upderr");
+        org.robolectric.shadows.ShadowLooper.idleMainLooper();
+
+        assertEquals("Update failed.",
+                ((TextView) activity.findViewById(R.id.feedbackText)).getText().toString());
+    }
+
+    @Test
+    public void saveCurrentForm_inEditMode_callsUpdateEvent() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository mockRepo = mock(EventRepository.class);
+        setField(activity, "eventRepository", mockRepo);
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        doAnswer(inv -> {
+            EventRepository.MessageCallback cb = inv.getArgument(1);
+            cb.onSuccess("Updated.");
+            return null;
+        }).when(mockRepo).updateEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+
+        invokePrivate(activity, "saveCurrentForm");
+        org.robolectric.shadows.ShadowLooper.idleMainLooper();
+
+        verify(mockRepo).updateEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+    }
+
+    @Test
+    public void saveCurrentForm_inAddMode_callsAddEvent() throws Exception {
+        AdminActivity activity = buildActivity();
+        EventRepository mockRepo = mock(EventRepository.class);
+        setField(activity, "eventRepository", mockRepo);
+        fillValidForm(activity);
+
+        doAnswer(inv -> {
+            EventRepository.MessageCallback cb = inv.getArgument(1);
+            cb.onSuccess("Added.");
+            return null;
+        }).when(mockRepo).addEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+
+        invokePrivate(activity, "saveCurrentForm");
+        org.robolectric.shadows.ShadowLooper.idleMainLooper();
+
+        verify(mockRepo).addEvent(any(Event.class), any(EventRepository.MessageCallback.class));
+    }
+
+    @Test
+    public void populateForm_cancelledEvent_showsUncancelButton() throws Exception {
+        AdminActivity activity = buildActivity();
+        Event cancelled = new Event(
+                "evt-c", "Jazz Night", "desc", "Montreal",
+                new Date(), 200, 0, EventCategory.CONCERT, EventStatus.CANCELLED);
+
+        invokePrivate(activity, "populateForm", Event.class, cancelled);
+
+        assertEquals(View.GONE, activity.findViewById(R.id.cancelEventButton).getVisibility());
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.uncancelEventButton).getVisibility());
+    }
+
+    @Test
+    public void populateForm_availableEvent_showsCancelButton() throws Exception {
+        AdminActivity activity = buildActivity();
+
+        invokePrivate(activity, "populateForm", Event.class, sampleEvent());
+
+        assertEquals(View.VISIBLE, activity.findViewById(R.id.cancelEventButton).getVisibility());
+        assertEquals(View.GONE, activity.findViewById(R.id.uncancelEventButton).getVisibility());
+    }
+
+    @Test
+    public void validateSeatCounts_catchesNonNumericInput() throws Exception {
+        AdminActivity activity = buildActivity();
+        ((EditText) activity.findViewById(R.id.totalSeatsInput)).setText("abc");
+        ((EditText) activity.findViewById(R.id.availableSeatsInput)).setText("xyz");
+
+        assertTrue((boolean) invokePrivate(activity, "validateSeatCounts"));
     }
 }

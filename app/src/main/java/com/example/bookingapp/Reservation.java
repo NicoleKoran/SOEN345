@@ -28,6 +28,12 @@ public class Reservation {
     private Date eventDate;
     private boolean emailSent;
 
+    /**
+     * Persisted in Firestore so the UI can show the correct label.
+     * Values: null (not cancelled), "user_cancelled", "event_cancelled"
+     */
+    private String cancellationReason;
+
     // ── Observer pattern ──────────────────────────────────────────────────────
     // transient = Firestore won't try to serialize this list
     private transient List<NotificationListener> observers = new ArrayList<>();
@@ -111,10 +117,27 @@ public class Reservation {
     public Date getEventDate()        { return eventDate; }
     public boolean isEmailSent()      { return emailSent; }
     public Ticket getGeneratedTicket(){ return generatedTicket; }
+    public String getCancellationReason() { return cancellationReason; }
+
     public void setReservationId(String reservationId) {
         this.reservationId = reservationId;
     }
+    public void setReservationDate(Date reservationDate) {
+        this.reservationDate = reservationDate;
+    }
     public void setEmailSent(boolean emailSent) {
         this.emailSent = emailSent;
+    }
+    public void setEventTitle(String eventTitle) {
+        this.eventTitle = eventTitle;
+    }
+    public void setUserEmail(String userEmail) {
+        this.userEmail = userEmail;
+    }
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
+    }
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

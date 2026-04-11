@@ -162,4 +162,40 @@ class ReservationTest {
         Reservation r = buildReservation();
         assertNull(r.getGeneratedTicket());
     }
+
+    // ── cancellationReason (US-11 / US-14) ────────────────────────────────────
+
+    @Test
+    void cancellationReason_initiallyNull() {
+        Reservation r = buildReservation();
+        assertNull(r.getCancellationReason());
+    }
+
+    @Test
+    void setCancellationReason_userCancelled_persistsValue() {
+        Reservation r = buildReservation();
+        r.setCancellationReason("user_cancelled");
+        assertEquals("user_cancelled", r.getCancellationReason());
+    }
+
+    @Test
+    void setCancellationReason_eventCancelled_persistsValue() {
+        Reservation r = buildReservation();
+        r.setCancellationReason("event_cancelled");
+        assertEquals("event_cancelled", r.getCancellationReason());
+    }
+
+    @Test
+    void setEventTitle_updatesField() {
+        Reservation r = new Reservation();
+        r.setEventTitle("Jazz Night");
+        assertEquals("Jazz Night", r.getEventTitle());
+    }
+
+    @Test
+    void setUserEmail_updatesField() {
+        Reservation r = new Reservation();
+        r.setUserEmail("customer@test.com");
+        assertEquals("customer@test.com", r.getUserEmail());
+    }
 }

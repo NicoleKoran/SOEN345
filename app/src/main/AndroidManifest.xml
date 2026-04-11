@@ -29,6 +29,7 @@
         <activity android:name=".HomeActivity" />
         <activity android:name=".BookingActivity"/>
         <activity android:name=".BookingConfirmedActivity"/>
+        <activity android:name=".MyReservationsActivity"/>
     </application>
 
 </manifest>
