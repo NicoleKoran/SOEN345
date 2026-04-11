@@ -32,6 +32,14 @@ import java.util.Locale;
 
 public class AdminActivity extends AppCompatActivity {
     public static final String EXTRA_EVENT_ID = "event_id";
+
+    /**
+     * Debuggable-build only: when set on the launch intent, skips creating real
+     * Firestore-backed repositories so instrumented tests can inject fakes without
+     * triggering multiple FirebaseFirestore initialisations in the same process.
+     */
+    public static final String EXTRA_INSTRUMENTATION_SKIP_FIRESTORE =
+            "com.example.bookingapp.ADMIN_SKIP_FIRESTORE";
     private static final String[] EDITABLE_STATUS_VALUES = {
             "available",
             "soldOut"
@@ -76,8 +84,15 @@ public class AdminActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin);
 
-        eventRepository = new EventRepository();
-        bookingRepository = new BookingRepository();
+        boolean skipFirestore = isDebuggableBuild()
+                && getIntent().getBooleanExtra(EXTRA_INSTRUMENTATION_SKIP_FIRESTORE, false);
+        if (skipFirestore) {
+            eventRepository    = new EventRepository(null);
+            bookingRepository  = new BookingRepository(null, null);
+        } else {
+            eventRepository    = new EventRepository();
+            bookingRepository  = new BookingRepository();
+        }
         bindViews();
         configureEventsList();
         configureSpinners();
@@ -888,6 +903,11 @@ public class AdminActivity extends AppCompatActivity {
         } else {
             addEvent();
         }
+    }
+
+    private boolean isDebuggableBuild() {
+        return (getApplicationInfo().flags
+                & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
     }
 
     private String readEventId() {

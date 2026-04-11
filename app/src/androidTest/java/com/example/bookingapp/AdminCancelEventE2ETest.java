@@ -62,10 +62,12 @@ public class AdminCancelEventE2ETest {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /** Launches AdminActivity in add-mode (no event pre-loaded). */
+    /** Launches AdminActivity in add-mode with Firestore skipped (no real Firebase calls). */
     private static Intent adminIntent() {
-        return new Intent(
+        Intent intent = new Intent(
                 ApplicationProvider.getApplicationContext(), AdminActivity.class);
+        intent.putExtra(AdminActivity.EXTRA_INSTRUMENTATION_SKIP_FIRESTORE, true);
+        return intent;
     }
 
     /**

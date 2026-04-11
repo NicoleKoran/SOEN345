@@ -62,7 +62,9 @@ public class US14_AdminCancelNotifyE2ETest {
     }
 
     private static Intent adminIntent() {
-        return new Intent(ApplicationProvider.getApplicationContext(), AdminActivity.class);
+        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), AdminActivity.class);
+        intent.putExtra(AdminActivity.EXTRA_INSTRUMENTATION_SKIP_FIRESTORE, true);
+        return intent;
     }
 
     private static void fillForm(ActivityScenario<AdminActivity> scenario, String eventId) {

@@ -26,8 +26,8 @@ public class EventRepository {
 
     EventRepository(FirebaseFirestore firestore) {
         this.firestore = firestore;
-        this.eventsCollection = firestore.collection("events");
-        this.reservationsCollection = firestore.collection("reservations");
+        this.eventsCollection = firestore != null ? firestore.collection("events") : null;
+        this.reservationsCollection = firestore != null ? firestore.collection("reservations") : null;
     }
 
     public void addEvent(Event event, MessageCallback callback) {

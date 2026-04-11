@@ -53,8 +53,10 @@ public class AdminUncancelEventE2ETest {
     }
 
     private static Intent adminIntent() {
-        return new Intent(
+        Intent intent = new Intent(
                 ApplicationProvider.getApplicationContext(), AdminActivity.class);
+        intent.putExtra(AdminActivity.EXTRA_INSTRUMENTATION_SKIP_FIRESTORE, true);
+        return intent;
     }
 
     /** Makes the un-cancel button visible and fills the event ID field. */
