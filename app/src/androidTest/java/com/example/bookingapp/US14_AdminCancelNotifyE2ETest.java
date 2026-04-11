@@ -110,6 +110,7 @@ public class US14_AdminCancelNotifyE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText("Yes, Cancel Event")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -120,6 +121,7 @@ public class US14_AdminCancelNotifyE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText(containsString("notified"))).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -130,6 +132,7 @@ public class US14_AdminCancelNotifyE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText("Go Back")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -140,6 +143,7 @@ public class US14_AdminCancelNotifyE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText(containsString("Jazz Night"))).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 

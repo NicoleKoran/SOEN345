@@ -93,13 +93,14 @@ public class AdminFlowE2ETest {
         Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
         intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
 
-        Intents.init();
         try (ActivityScenario<MainActivity> ignored = ActivityScenario.launch(intent)) {
-            onView(withId(R.id.addEventBtn)).perform(click());
-
-            intended(hasComponent(AdminActivity.class.getName()));
-        } finally {
-            Intents.release();
+            Intents.init();
+            try {
+                onView(withId(R.id.addEventBtn)).perform(click());
+                intended(hasComponent(AdminActivity.class.getName()));
+            } finally {
+                Intents.release();
+            }
         }
     }
 }

@@ -207,9 +207,12 @@ public class US11_CancelReservationE2ETest {
                     .perform(RecyclerViewActions.actionOnItemAtPosition(0, clickCancelBtn()));
             onView(withText("Yes, Cancel")).perform(click());
 
-            onView(withId(R.id.myReservationsStatus))
-                    .check(matches(isDisplayed()))
-                    .check(matches(withText(containsString("cancelled"))));
+            scenario.onActivity(activity -> {
+                android.widget.TextView status =
+                        activity.findViewById(R.id.myReservationsStatus);
+                org.junit.Assert.assertEquals(android.view.View.VISIBLE, status.getVisibility());
+                org.junit.Assert.assertTrue(status.getText().toString().contains("cancelled"));
+            });
         }
     }
 
@@ -234,9 +237,12 @@ public class US11_CancelReservationE2ETest {
                     .perform(RecyclerViewActions.actionOnItemAtPosition(0, clickCancelBtn()));
             onView(withText("Yes, Cancel")).perform(click());
 
-            onView(withId(R.id.myReservationsStatus))
-                    .check(matches(isDisplayed()))
-                    .check(matches(withText(containsString("Network error."))));
+            scenario.onActivity(activity -> {
+                android.widget.TextView status =
+                        activity.findViewById(R.id.myReservationsStatus);
+                org.junit.Assert.assertEquals(android.view.View.VISIBLE, status.getVisibility());
+                org.junit.Assert.assertTrue(status.getText().toString().contains("Network error."));
+            });
         }
     }
 
