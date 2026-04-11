@@ -45,6 +45,7 @@ jobs:
 
       - name: Run Instrumentation Tests
         uses: reactivecircus/android-emulator-runner@v2
+        continue-on-error: true
         with:
           api-level: ${{ matrix.api-level }}
           target: default
@@ -54,4 +55,12 @@ jobs:
           disable-animations: true
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -wipe-data -camera-back none
-          script: ./gradlew connectedDebugAndroidTest --stacktrace
+          script: |
+            ./gradlew connectedDebugAndroidTest --stacktrace
+            echo $? > /tmp/gradle-exit-code
+
+      - name: Report Test Results
+        run: |
+          EXIT_CODE=$(cat /tmp/gradle-exit-code 2>/dev/null || echo "1")
+          echo "Gradle test exit code: $EXIT_CODE"
+          exit $EXIT_CODE
