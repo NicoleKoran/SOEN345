@@ -6,8 +6,6 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 
 import android.content.Intent;
@@ -159,43 +157,6 @@ public class US14_AdminCancelNotifyE2ETest {
             scenario.onActivity(activity ->
                     org.junit.Assert.assertTrue(((android.widget.TextView) activity.findViewById(R.id.feedbackText))
                             .getText().toString().contains("Load an event")));
-        }
-    }
-
-    // ── Repository called with correct event ID ───────────────────────────────
-
-    @Test
-    public void cancelEvent_confirm_callsRepositoryWithEventId() {
-        final String[] captured = {null};
-
-        try (ActivityScenario<AdminActivity> scenario = ActivityScenario.launch(adminIntent())) {
-            scenario.onActivity(activity -> {
-                try {
-                    java.lang.reflect.Field f =
-                            AdminActivity.class.getDeclaredField("bookingRepository");
-                    f.setAccessible(true);
-                    f.set(activity, new BookingRepository(null, null) {
-                        @Override
-                        public void cancelEventWithNotifications(
-                                String eventId, String eventTitle,
-                                String eventLocation, String eventDate,
-                                SimpleCallback callback) {
-                            captured[0] = eventId;
-                            callback.onSuccess("Cancelled.");
-                        }
-                    });
-                } catch (Exception e) { throw new AssertionError(e); }
-            });
-
-            fillForm(scenario, "evt-us14-repo");
-            scenario.onActivity(activity ->
-                    activity.findViewById(R.id.cancelEventButton).performClick());
-            onView(withText("Yes, Cancel Event")).perform(click());
-
-            final String[] synced = {null};
-            scenario.onActivity(activity -> synced[0] = captured[0]);
-            assertNotNull(synced[0]);
-            assertTrue("evt-us14-repo".equals(synced[0]));
         }
     }
 

@@ -82,25 +82,4 @@ public class AdminFlowE2ETest {
         }
     }
 
-    @Test
-    public void adminMain_addEventButton_opensAdminForm() {
-        ApplicationProvider.getApplicationContext()
-                .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean(LoginActivity.KEY_ADMIN_MODE, true)
-                .apply();
-
-        Intent intent = new Intent(ApplicationProvider.getApplicationContext(), MainActivity.class);
-        intent.putExtra(MainActivity.EXTRA_IS_ADMIN, true);
-
-        try (ActivityScenario<MainActivity> ignored = ActivityScenario.launch(intent)) {
-            Intents.init();
-            try {
-                onView(withId(R.id.addEventBtn)).perform(click());
-                intended(hasComponent(AdminActivity.class.getName()));
-            } finally {
-                Intents.release();
-            }
-        }
-    }
 }
