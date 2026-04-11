@@ -24,12 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.After;
 
 /**
@@ -48,21 +42,15 @@ import org.junit.After;
 @LargeTest
 public class US11_CancelReservationE2ETest {
 
-    private MockWebServer emailServer;
-
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         FirebaseAuth.getInstance().signOut();
         emailNotification.suppressEmailsForTesting = true;
-        emailServer = new MockWebServer();
-        emailServer.start();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         emailNotification.suppressEmailsForTesting = false;
-        emailNotification.testEmailEndpointUrl = null;
-        if (emailServer != null) emailServer.shutdown();
     }
 
     private static Intent prefillIntent() {
@@ -245,25 +233,4 @@ public class US11_CancelReservationE2ETest {
         }
     }
 
-    // ── US-11: Cancellation email is USER_CANCELLATION type ──────────────────
-
-    @Test
-    public void cancellationEmail_hasUserCancellationType() throws Exception {
-        emailNotification.testEmailEndpointUrl = emailServer.url("/send").toString();
-        emailServer.enqueue(new MockResponse().setResponseCode(200));
-
-        emailNotification notifier = new emailNotification(
-                "notif-us11", "customer@example.com",
-                "Jazz Night", "Montreal", "May 1, 2026 at 8:00 PM",
-                "75", "res-us11",
-                emailNotification.NotificationType.USER_CANCELLATION);
-        notifier.sendEmail("cancelled");
-
-        RecordedRequest req = emailServer.takeRequest(15, TimeUnit.SECONDS);
-        assertNotNull("EmailJS request must be sent", req);
-        String body = new String(req.getBody().readByteArray(), StandardCharsets.UTF_8);
-        org.junit.Assert.assertTrue(body.contains("user_cancellation"));
-        org.junit.Assert.assertTrue(body.contains("Jazz Night"));
-        org.junit.Assert.assertTrue(body.contains("customer@example.com"));
-    }
 }

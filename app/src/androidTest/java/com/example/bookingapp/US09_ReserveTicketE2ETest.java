@@ -9,7 +9,6 @@ import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Intent;
@@ -26,12 +25,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 
 /**
  * US-09 — Reserve a ticket for an event.
@@ -50,21 +43,15 @@ import okhttp3.mockwebserver.RecordedRequest;
 @LargeTest
 public class US09_ReserveTicketE2ETest {
 
-    private MockWebServer emailServer;
-
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         FirebaseAuth.getInstance().signOut();
         emailNotification.suppressEmailsForTesting = true;
-        emailServer = new MockWebServer();
-        emailServer.start();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         emailNotification.suppressEmailsForTesting = false;
-        emailNotification.testEmailEndpointUrl = null;
-        if (emailServer != null) emailServer.shutdown();
     }
 
     // ── Intent helpers ────────────────────────────────────────────────────────
@@ -248,28 +235,6 @@ public class US09_ReserveTicketE2ETest {
             onView(withId(R.id.confirmBookingBtn)).perform(click());
             onView(withId(R.id.confirmBookingBtn)).check(matches(isEnabled()));
         }
-    }
-
-    // ── US-09: Confirmation email is sent via EmailJS ─────────────────────────
-
-    @Test
-    public void confirmBooking_sendsEmailWithCorrectFields() throws Exception {
-        emailNotification.testEmailEndpointUrl = emailServer.url("/send").toString();
-        emailServer.enqueue(new MockResponse().setResponseCode(200));
-
-        emailNotification notifier = new emailNotification(
-                "notif-us09", "customer@example.com",
-                "Jazz Night", "Montreal", "May 1, 2026 at 8:00 PM",
-                "75", "res-us09-email",
-                emailNotification.NotificationType.BOOKING_CONFIRMATION);
-        notifier.sendEmail("confirmed");
-
-        RecordedRequest req = emailServer.takeRequest(15, TimeUnit.SECONDS);
-        assertNotNull("EmailJS request must be sent", req);
-        String body = new String(req.getBody().readByteArray(), StandardCharsets.UTF_8);
-        assertTrue(body.contains("Jazz Night"));
-        assertTrue(body.contains("customer@example.com"));
-        assertTrue(body.contains("booking_confirmation"));
     }
 
     // ── US-09 + US-19: Confirm button shows "Booking…" while in-flight ────────

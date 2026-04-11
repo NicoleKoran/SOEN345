@@ -167,4 +167,21 @@ class emailNotificationTest {
             assertDoesNotThrow(() -> n.sendEmail("event cancelled"));
         }
     }
+
+    @Test
+    void sendEmail_whenSuppressed_returnsImmediatelyWithoutThrow() {
+        try (MockedStatic<Log> logMock = mockStatic(Log.class)) {
+            emailNotification.suppressEmailsForTesting = true;
+            try {
+                emailNotification n = buildNotification();
+                assertDoesNotThrow(() -> n.sendEmail("should be suppressed"));
+                // Log.d must be called with the suppression message
+                logMock.verify(() -> Log.d(
+                        eq("emailNotification"),
+                        org.mockito.ArgumentMatchers.contains("suppressed")));
+            } finally {
+                emailNotification.suppressEmailsForTesting = false;
+            }
+        }
+    }
 }

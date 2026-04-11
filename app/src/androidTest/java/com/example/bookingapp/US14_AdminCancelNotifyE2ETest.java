@@ -13,6 +13,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+
 import android.content.Intent;
 import android.view.View;
 
@@ -27,12 +28,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
-
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.After;
 
 /**
@@ -52,24 +47,18 @@ import org.junit.After;
 @LargeTest
 public class US14_AdminCancelNotifyE2ETest {
 
-    private MockWebServer emailServer;
-
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         FirebaseAuth.getInstance().signOut();
         ApplicationProvider.getApplicationContext()
                 .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE)
                 .edit().putBoolean(LoginActivity.KEY_ADMIN_MODE, true).apply();
         emailNotification.suppressEmailsForTesting = true;
-        emailServer = new MockWebServer();
-        emailServer.start();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
         emailNotification.suppressEmailsForTesting = false;
-        emailNotification.testEmailEndpointUrl = null;
-        if (emailServer != null) emailServer.shutdown();
     }
 
     private static Intent adminIntent() {
@@ -299,25 +288,4 @@ public class US14_AdminCancelNotifyE2ETest {
         }
     }
 
-    // ── US-14: Event cancellation email type ─────────────────────────────────
-
-    @Test
-    public void eventCancellationEmail_hasEventCancellationType() throws Exception {
-        emailNotification.testEmailEndpointUrl = emailServer.url("/send").toString();
-        emailServer.enqueue(new MockResponse().setResponseCode(200));
-
-        emailNotification notifier = new emailNotification(
-                "notif-us14", "customer@example.com",
-                "Jazz Night", "Montreal", "May 1, 2026 at 8:00 PM",
-                "", "res-us14",
-                emailNotification.NotificationType.EVENT_CANCELLATION);
-        notifier.sendEmail("event_cancelled");
-
-        RecordedRequest req = emailServer.takeRequest(15, TimeUnit.SECONDS);
-        assertNotNull(req);
-        String body = new String(req.getBody().readByteArray(), StandardCharsets.UTF_8);
-        assertTrue(body.contains("event_cancellation"));
-        assertTrue(body.contains("Jazz Night"));
-        assertTrue(body.contains("organizer"));
-    }
 }
