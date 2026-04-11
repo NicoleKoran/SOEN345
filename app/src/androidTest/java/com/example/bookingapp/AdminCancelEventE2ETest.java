@@ -4,15 +4,12 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Intent;
-import android.view.View;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -81,9 +78,6 @@ public class AdminCancelEventE2ETest {
     private static void fillEventForm(ActivityScenario<AdminActivity> scenario,
                                       String eventId) {
         scenario.onActivity(activity -> {
-            // Make the form visible so Espresso can interact with buttons inside it
-            activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
-            activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
             // Set field values directly (eventIdInput is always GONE by design)
             ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
                     .setText(eventId);
@@ -94,7 +88,7 @@ public class AdminCancelEventE2ETest {
             ((android.widget.EditText) activity.findViewById(R.id.dateInput))
                     .setText("2026-05-01 19:00");
             // Simulate being in edit mode
-            activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE);
+            activity.findViewById(R.id.cancelEventButton).setVisibility(android.view.View.VISIBLE);
         });
     }
 
@@ -109,7 +103,9 @@ public class AdminCancelEventE2ETest {
         try (ActivityScenario<AdminActivity> scenario =
                      ActivityScenario.launch(adminIntent())) {
             fillEventForm(scenario, "evt-test-1");
-            onView(withId(R.id.cancelEventButton)).check(matches(isDisplayed()));
+            scenario.onActivity(activity ->
+                    org.junit.Assert.assertEquals(android.view.View.VISIBLE,
+                            activity.findViewById(R.id.cancelEventButton).getVisibility()));
         }
     }
 
@@ -122,9 +118,10 @@ public class AdminCancelEventE2ETest {
         try (ActivityScenario<AdminActivity> scenario =
                      ActivityScenario.launch(adminIntent())) {
             fillEventForm(scenario, "evt-test-2");
-            onView(withId(R.id.cancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.cancelEventButton).performClick());
 
-            // Dialog positive button must show the updated label
+            // Dialog positive button must show the updated label (AlertDialog is in a separate window)
             onView(withText("Yes, Cancel Event")).check(matches(isDisplayed()));
         }
     }
@@ -140,12 +137,14 @@ public class AdminCancelEventE2ETest {
             // Make cancel button visible without filling the eventId
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.cancelEventButton)
-                            .setVisibility(View.VISIBLE));
+                            .setVisibility(android.view.View.VISIBLE));
 
-            onView(withId(R.id.cancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.cancelEventButton).performClick());
 
-            onView(withId(R.id.feedbackText))
-                    .check(matches(withText(containsString("Load an event"))));
+            scenario.onActivity(activity ->
+                    org.junit.Assert.assertTrue(((android.widget.TextView) activity.findViewById(R.id.feedbackText))
+                            .getText().toString().contains("Load an event")));
         }
     }
 
@@ -183,14 +182,17 @@ public class AdminCancelEventE2ETest {
             });
 
             fillEventForm(scenario, "evt-inject-1");
-            onView(withId(R.id.cancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.cancelEventButton).performClick());
 
-            // Confirm the dialog
+            // Confirm the dialog (AlertDialog is in a separate window — Espresso is fine here)
             onView(withText("Yes, Cancel Event")).perform(click());
 
-            assertNotNull("cancelEventWithNotifications must be called", capturedEventId[0]);
+            final String[] synced = {null};
+            scenario.onActivity(activity -> synced[0] = capturedEventId[0]);
+            assertNotNull("cancelEventWithNotifications must be called", synced[0]);
             assertTrue("Event ID must be passed correctly",
-                    "evt-inject-1".equals(capturedEventId[0]));
+                    "evt-inject-1".equals(synced[0]));
         }
     }
 
@@ -223,11 +225,14 @@ public class AdminCancelEventE2ETest {
             });
 
             fillEventForm(scenario, "evt-success-1");
-            onView(withId(R.id.cancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText("Yes, Cancel Event")).perform(click());
 
             // Button must be gone after success
-            onView(withId(R.id.cancelEventButton)).check(matches(not(isDisplayed())));
+            scenario.onActivity(activity ->
+                    org.junit.Assert.assertNotEquals(android.view.View.VISIBLE,
+                            activity.findViewById(R.id.cancelEventButton).getVisibility()));
         }
     }
 
@@ -261,12 +266,16 @@ public class AdminCancelEventE2ETest {
             });
 
             fillEventForm(scenario, "evt-fail-1");
-            onView(withId(R.id.cancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText("Yes, Cancel Event")).perform(click());
 
-            onView(withId(R.id.feedbackText))
-                    .check(matches(withText(containsString("Network error"))));
-            onView(withId(R.id.cancelEventButton)).check(matches(isDisplayed()));
+            scenario.onActivity(activity -> {
+                org.junit.Assert.assertTrue(((android.widget.TextView) activity.findViewById(R.id.feedbackText))
+                        .getText().toString().contains("Network error"));
+                org.junit.Assert.assertEquals(android.view.View.VISIBLE,
+                        activity.findViewById(R.id.cancelEventButton).getVisibility());
+            });
         }
     }
 

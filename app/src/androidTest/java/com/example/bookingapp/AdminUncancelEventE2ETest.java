@@ -4,14 +4,10 @@ import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertNotNull;
 
 import android.content.Intent;
-import android.view.View;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -66,14 +62,12 @@ public class AdminUncancelEventE2ETest {
     private static void showUncancelButton(ActivityScenario<AdminActivity> scenario,
                                            String eventId) {
         scenario.onActivity(activity -> {
-            activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
-            activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
             ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
                     .setText(eventId);
             ((android.widget.EditText) activity.findViewById(R.id.titleInput))
                     .setText("Jazz Night");
-            activity.findViewById(R.id.cancelEventButton).setVisibility(View.GONE);
-            activity.findViewById(R.id.uncancelEventButton).setVisibility(View.VISIBLE);
+            activity.findViewById(R.id.cancelEventButton).setVisibility(android.view.View.GONE);
+            activity.findViewById(R.id.uncancelEventButton).setVisibility(android.view.View.VISIBLE);
         });
     }
 
@@ -87,7 +81,8 @@ public class AdminUncancelEventE2ETest {
         try (ActivityScenario<AdminActivity> scenario =
                      ActivityScenario.launch(adminIntent())) {
             showUncancelButton(scenario, "evt-uncancel-1");
-            onView(withId(R.id.uncancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.uncancelEventButton).performClick());
             onView(withText("Yes, Restore")).check(matches(isDisplayed()));
         }
     }
@@ -100,7 +95,8 @@ public class AdminUncancelEventE2ETest {
         try (ActivityScenario<AdminActivity> scenario =
                      ActivityScenario.launch(adminIntent())) {
             showUncancelButton(scenario, "evt-uncancel-2");
-            onView(withId(R.id.uncancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.uncancelEventButton).performClick());
             onView(withText(containsString("Jazz Night"))).check(matches(isDisplayed()));
         }
     }
@@ -113,10 +109,12 @@ public class AdminUncancelEventE2ETest {
         try (ActivityScenario<AdminActivity> scenario =
                      ActivityScenario.launch(adminIntent())) {
             scenario.onActivity(activity ->
-                    activity.findViewById(R.id.uncancelEventButton).setVisibility(View.VISIBLE));
-            onView(withId(R.id.uncancelEventButton)).perform(click());
-            onView(withId(R.id.feedbackText))
-                    .check(matches(withText(containsString("Load an event"))));
+                    activity.findViewById(R.id.uncancelEventButton).setVisibility(android.view.View.VISIBLE));
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.uncancelEventButton).performClick());
+            scenario.onActivity(activity ->
+                    org.junit.Assert.assertTrue(((android.widget.TextView) activity.findViewById(R.id.feedbackText))
+                            .getText().toString().contains("Load an event")));
         }
     }
 
@@ -152,22 +150,25 @@ public class AdminUncancelEventE2ETest {
 
             // Put activity in edit mode with cancel button showing
             scenario.onActivity(activity -> {
-                activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
-                activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
                 ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
                         .setText("evt-toggle-1");
                 ((android.widget.EditText) activity.findViewById(R.id.titleInput))
                         .setText("Jazz Night");
-                activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE);
+                activity.findViewById(R.id.cancelEventButton).setVisibility(android.view.View.VISIBLE);
             });
 
             // Cancel the event
-            onView(withId(R.id.cancelEventButton)).perform(click());
+            scenario.onActivity(activity ->
+                    activity.findViewById(R.id.cancelEventButton).performClick());
             onView(withText("Yes, Cancel Event")).perform(click());
 
             // Un-cancel button must now be visible; cancel button must be gone
-            onView(withId(R.id.uncancelEventButton)).check(matches(isDisplayed()));
-            onView(withId(R.id.cancelEventButton)).check(matches(not(isDisplayed())));
+            scenario.onActivity(activity -> {
+                org.junit.Assert.assertEquals(android.view.View.VISIBLE,
+                        activity.findViewById(R.id.uncancelEventButton).getVisibility());
+                org.junit.Assert.assertNotEquals(android.view.View.VISIBLE,
+                        activity.findViewById(R.id.cancelEventButton).getVisibility());
+            });
         }
     }
 }

@@ -123,6 +123,7 @@ public class US11_CancelReservationE2ETest {
             onView(withId(R.id.reservationsRecyclerView))
                     .perform(RecyclerViewActions.actionOnItemAtPosition(0, clickCancelBtn()));
             onView(withText(containsString("cancel"))).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -133,6 +134,7 @@ public class US11_CancelReservationE2ETest {
             onView(withId(R.id.reservationsRecyclerView))
                     .perform(RecyclerViewActions.actionOnItemAtPosition(0, clickCancelBtn()));
             onView(withText("Yes, Cancel")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -143,6 +145,7 @@ public class US11_CancelReservationE2ETest {
             onView(withId(R.id.reservationsRecyclerView))
                     .perform(RecyclerViewActions.actionOnItemAtPosition(0, clickCancelBtn()));
             onView(withText("Keep It")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -172,8 +175,12 @@ public class US11_CancelReservationE2ETest {
                     .perform(RecyclerViewActions.actionOnItemAtPosition(0, clickCancelBtn()));
             onView(withText("Yes, Cancel")).perform(click());
 
-            assertNotNull("cancelReservation must be called", capturedId[0]);
-            org.junit.Assert.assertEquals("test-res-confirmed", capturedId[0]);
+            // Sync with main thread to ensure the callback (running on main thread) has completed
+            // before we inspect the captured value on the test thread.
+            final String[] synced = {null};
+            scenario.onActivity(activity -> synced[0] = capturedId[0]);
+            assertNotNull("cancelReservation must be called", synced[0]);
+            org.junit.Assert.assertEquals("test-res-confirmed", synced[0]);
         }
     }
 

@@ -35,6 +35,13 @@ public class MainActivity extends AppCompatActivity {
      */
     public static boolean skipRedirectForTesting = false;
 
+    /**
+     * Set to {@code true} in instrumented tests to skip FirebaseFirestore initialization
+     * in {@code onCreate()} and skip loading events from Firestore.  Must be reset to
+     * {@code false} in {@code @After} to avoid polluting other tests.
+     */
+    public static boolean skipFirestoreForTesting = false;
+
     RecyclerView recyclerView;
     EventAdapter adapter;
     List<Event> allEvents = new ArrayList<>();
@@ -77,7 +84,9 @@ public class MainActivity extends AppCompatActivity {
 
 
         super.onCreate(savedInstanceState);
-        db = FirebaseFirestore.getInstance();
+        if (!skipFirestoreForTesting) {
+            db = FirebaseFirestore.getInstance();
+        }
         setContentView(R.layout.activity_main);
         isAdmin = resolveAdminMode();
 
@@ -301,6 +310,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadEvents() {
+        if (db == null) return;
         db.collection("events").get().addOnSuccessListener(snap -> {
             allEvents.clear();
             for (DocumentSnapshot doc : snap) {
