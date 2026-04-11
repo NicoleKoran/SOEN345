@@ -23,6 +23,7 @@ import androidx.test.filters.LargeTest;
 
 import com.google.firebase.auth.FirebaseAuth;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -45,12 +46,18 @@ public class AdminCancelEventE2ETest {
     @Before
     public void setUp() {
         FirebaseAuth.getInstance().signOut();
+        emailNotification.suppressEmailsForTesting = true;
         // Ensure admin session is active so AdminActivity doesn't bounce to login
         ApplicationProvider.getApplicationContext()
                 .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(LoginActivity.KEY_ADMIN_MODE, true)
                 .apply();
+    }
+
+    @After
+    public void tearDown() {
+        emailNotification.suppressEmailsForTesting = false;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -31,6 +31,12 @@ public class emailNotification implements NotificationListener {
     static String testEmailEndpointUrl;
 
     /**
+     * When true, {@link #sendEmail} returns immediately without making any HTTP call.
+     * Set this in instrumented tests to prevent real emails from being sent.
+     */
+    public static boolean suppressEmailsForTesting = false;
+
+    /**
      * Distinguishes why this notification is being sent so the email content
      * and subject line can differ between confirmations and cancellations.
      */
@@ -114,6 +120,10 @@ public class emailNotification implements NotificationListener {
      *   {{message}}           — main body text describing what happened
      */
     public void sendEmail(String message) {
+        if (suppressEmailsForTesting) {
+            Log.d(TAG, "Email suppressed for testing [" + notificationType + "] to " + toEmail);
+            return;
+        }
         try {
             JSONObject templateParams = new JSONObject();
             templateParams.put("email",             toEmail);

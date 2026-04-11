@@ -21,6 +21,7 @@ import androidx.test.filters.LargeTest;
 
 import com.google.firebase.auth.FirebaseAuth;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -45,6 +46,12 @@ public class US10_ViewReservationHistoryE2ETest {
     @Before
     public void setUp() {
         FirebaseAuth.getInstance().signOut();
+        emailNotification.suppressEmailsForTesting = true;
+    }
+
+    @After
+    public void tearDown() {
+        emailNotification.suppressEmailsForTesting = false;
     }
 
     private static Intent prefillIntent() {

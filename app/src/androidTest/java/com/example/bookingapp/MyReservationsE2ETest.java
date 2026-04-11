@@ -53,6 +53,12 @@ public class MyReservationsE2ETest {
     @Before
     public void signOut() {
         FirebaseAuth.getInstance().signOut();
+        emailNotification.suppressEmailsForTesting = true;
+    }
+
+    @After
+    public void tearDown() {
+        emailNotification.suppressEmailsForTesting = false;
     }
 
     // ── Helper: intent that pre-fills the list with test data ─────────────────

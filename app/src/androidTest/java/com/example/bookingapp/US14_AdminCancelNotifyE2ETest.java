@@ -60,12 +60,14 @@ public class US14_AdminCancelNotifyE2ETest {
         ApplicationProvider.getApplicationContext()
                 .getSharedPreferences(LoginActivity.PREFS_NAME, android.content.Context.MODE_PRIVATE)
                 .edit().putBoolean(LoginActivity.KEY_ADMIN_MODE, true).apply();
+        emailNotification.suppressEmailsForTesting = true;
         emailServer = new MockWebServer();
         emailServer.start();
     }
 
     @After
     public void tearDown() throws Exception {
+        emailNotification.suppressEmailsForTesting = false;
         emailNotification.testEmailEndpointUrl = null;
         if (emailServer != null) emailServer.shutdown();
     }

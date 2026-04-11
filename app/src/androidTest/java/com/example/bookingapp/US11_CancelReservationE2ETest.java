@@ -53,12 +53,14 @@ public class US11_CancelReservationE2ETest {
     @Before
     public void setUp() throws Exception {
         FirebaseAuth.getInstance().signOut();
+        emailNotification.suppressEmailsForTesting = true;
         emailServer = new MockWebServer();
         emailServer.start();
     }
 
     @After
     public void tearDown() throws Exception {
+        emailNotification.suppressEmailsForTesting = false;
         emailNotification.testEmailEndpointUrl = null;
         if (emailServer != null) emailServer.shutdown();
     }
