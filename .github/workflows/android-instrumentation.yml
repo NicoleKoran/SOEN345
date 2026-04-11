@@ -59,6 +59,24 @@ jobs:
             ./gradlew connectedDebugAndroidTest --stacktrace
             echo $? > /tmp/gradle-exit-code
 
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumentation-test-reports
+          path: app/build/reports/androidTests/connected/
+          if-no-files-found: ignore
+
+      - name: Print Failed Tests
+        if: always()
+        run: |
+          echo "=== Searching for test failure XML files ==="
+          find app/build/outputs/androidTest-results -name "*.xml" 2>/dev/null | while read f; do
+            echo "--- $f ---"
+            grep -E '<failure|<error' "$f" && echo "" || true
+          done
+          echo "=== Done ==="
+
       - name: Report Test Results
         run: |
           EXIT_CODE=$(cat /tmp/gradle-exit-code 2>/dev/null || echo "1")
