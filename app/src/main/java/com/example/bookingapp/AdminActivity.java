@@ -84,8 +84,8 @@ public class AdminActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin);
 
-        boolean skipFirestore = isDebuggableBuild()
-                && getIntent().getBooleanExtra(EXTRA_INSTRUMENTATION_SKIP_FIRESTORE, false);
+        boolean skipFirestore =
+                getIntent().getBooleanExtra(EXTRA_INSTRUMENTATION_SKIP_FIRESTORE, false);
         if (skipFirestore) {
             eventRepository    = new EventRepository(null);
             bookingRepository  = new BookingRepository(null, null);

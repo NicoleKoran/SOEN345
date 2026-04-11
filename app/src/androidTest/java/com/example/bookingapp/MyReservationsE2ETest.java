@@ -54,11 +54,14 @@ public class MyReservationsE2ETest {
     public void signOut() {
         FirebaseAuth.getInstance().signOut();
         emailNotification.suppressEmailsForTesting = true;
+        // Prevent MainActivity from redirecting to LoginActivity when no user is signed in.
+        MainActivity.skipRedirectForTesting = true;
     }
 
     @After
     public void tearDown() {
         emailNotification.suppressEmailsForTesting = false;
+        MainActivity.skipRedirectForTesting = false;
     }
 
     // ── Helper: intent that pre-fills the list with test data ─────────────────
@@ -96,8 +99,11 @@ public class MyReservationsE2ETest {
         try (ActivityScenario<MyReservationsActivity> scenario =
                      ActivityScenario.launch(prefillIntent())) {
             onView(withId(R.id.backButton)).perform(click());
-            scenario.onActivity(activity ->
-                    assertNotNull("activity should be finishing", activity));
+            // After finish() the activity transitions to DESTROYED.
+            org.junit.Assert.assertEquals(
+                    "Activity should be DESTROYED after back button press",
+                    androidx.lifecycle.Lifecycle.State.DESTROYED,
+                    scenario.getState());
         }
     }
 

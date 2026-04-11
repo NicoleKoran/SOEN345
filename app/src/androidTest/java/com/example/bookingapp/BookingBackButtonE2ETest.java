@@ -5,8 +5,6 @@ import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
-import static org.junit.Assert.assertTrue;
-
 import android.content.Intent;
 
 import androidx.test.core.app.ActivityScenario;
@@ -71,9 +69,12 @@ public class BookingBackButtonE2ETest {
         try (ActivityScenario<BookingActivity> scenario =
                      ActivityScenario.launch(bookingIntent())) {
             onView(withId(R.id.backButton)).perform(click());
-            // After finish(), the activity moves to DESTROYED state
-            scenario.onActivity(activity ->
-                    assertTrue("Activity should be finishing", activity.isFinishing()));
+            // After finish() the activity transitions to DESTROYED.
+            // scenario.getState() is safe to call even after DESTROYED.
+            org.junit.Assert.assertEquals(
+                    "Activity should be DESTROYED after back button press",
+                    androidx.lifecycle.Lifecycle.State.DESTROYED,
+                    scenario.getState());
         }
     }
 

@@ -47,11 +47,15 @@ public class US10_ViewReservationHistoryE2ETest {
     public void setUp() {
         FirebaseAuth.getInstance().signOut();
         emailNotification.suppressEmailsForTesting = true;
+        // Prevent MainActivity from redirecting to LoginActivity when no user is signed in,
+        // so non-admin navigation tests can reach the main screen.
+        MainActivity.skipRedirectForTesting = true;
     }
 
     @After
     public void tearDown() {
         emailNotification.suppressEmailsForTesting = false;
+        MainActivity.skipRedirectForTesting = false;
     }
 
     private static Intent prefillIntent() {
@@ -166,9 +170,12 @@ public class US10_ViewReservationHistoryE2ETest {
         try (ActivityScenario<MyReservationsActivity> scenario =
                      ActivityScenario.launch(prefillIntent())) {
             onView(withId(R.id.backButton)).perform(click());
-            scenario.onActivity(activity ->
-                    org.junit.Assert.assertTrue(
-                            "Activity should be finishing", activity.isFinishing()));
+            // After finish() the activity transitions to DESTROYED.
+            // scenario.getState() is safe even in DESTROYED state.
+            org.junit.Assert.assertEquals(
+                    "Activity should be DESTROYED after back button press",
+                    androidx.lifecycle.Lifecycle.State.DESTROYED,
+                    scenario.getState());
         }
     }
 }

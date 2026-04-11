@@ -2,8 +2,6 @@ package com.example.bookingapp;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
-import static androidx.test.espresso.action.ViewActions.replaceText;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -74,22 +72,30 @@ public class AdminCancelEventE2ETest {
      * Fills the event-ID field and the mandatory form fields so that
      * {@code promptCancelEvent()} finds a non-empty event ID and the cancel
      * button becomes operable.
+     *
+     * Uses {@code scenario.onActivity()} directly because the form container
+     * ({@code formScrollView} / {@code formContainer}) and the {@code eventIdInput}
+     * are all {@code android:visibility="gone"} by default — Espresso cannot
+     * perform actions on GONE views.
      */
     private static void fillEventForm(ActivityScenario<AdminActivity> scenario,
                                       String eventId) {
-        onView(withId(R.id.eventIdInput))
-                .perform(replaceText(eventId), closeSoftKeyboard());
-        onView(withId(R.id.titleInput))
-                .perform(replaceText("Jazz Night"), closeSoftKeyboard());
-        onView(withId(R.id.locationInput))
-                .perform(replaceText("Montreal"), closeSoftKeyboard());
-        onView(withId(R.id.dateInput))
-                .perform(replaceText("2026-05-01 19:00"), closeSoftKeyboard());
-
-        // Make the Cancel Event button visible (simulates being in edit mode)
-        scenario.onActivity(activity ->
-                activity.findViewById(R.id.cancelEventButton)
-                        .setVisibility(View.VISIBLE));
+        scenario.onActivity(activity -> {
+            // Make the form visible so Espresso can interact with buttons inside it
+            activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
+            activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
+            // Set field values directly (eventIdInput is always GONE by design)
+            ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
+                    .setText(eventId);
+            ((android.widget.EditText) activity.findViewById(R.id.titleInput))
+                    .setText("Jazz Night");
+            ((android.widget.EditText) activity.findViewById(R.id.locationInput))
+                    .setText("Montreal");
+            ((android.widget.EditText) activity.findViewById(R.id.dateInput))
+                    .setText("2026-05-01 19:00");
+            // Simulate being in edit mode
+            activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE);
+        });
     }
 
     // ── US-14: Cancel Event button & dialog ───────────────────────────────────

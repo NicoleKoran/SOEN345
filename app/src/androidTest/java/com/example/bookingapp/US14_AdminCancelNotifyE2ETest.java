@@ -2,8 +2,6 @@ package com.example.bookingapp;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
-import static androidx.test.espresso.action.ViewActions.replaceText;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -67,12 +65,23 @@ public class US14_AdminCancelNotifyE2ETest {
         return intent;
     }
 
+    /**
+     * Fills the form fields via {@code scenario.onActivity()} because
+     * {@code formScrollView}, {@code formContainer}, and {@code eventIdInput}
+     * are all {@code android:visibility="gone"} by default.
+     */
     private static void fillForm(ActivityScenario<AdminActivity> scenario, String eventId) {
-        onView(withId(R.id.eventIdInput)).perform(replaceText(eventId), closeSoftKeyboard());
-        onView(withId(R.id.titleInput)).perform(replaceText("Jazz Night"), closeSoftKeyboard());
-        onView(withId(R.id.locationInput)).perform(replaceText("Montreal"), closeSoftKeyboard());
-        scenario.onActivity(activity ->
-                activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE));
+        scenario.onActivity(activity -> {
+            activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
+            activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
+            ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
+                    .setText(eventId);
+            ((android.widget.EditText) activity.findViewById(R.id.titleInput))
+                    .setText("Jazz Night");
+            ((android.widget.EditText) activity.findViewById(R.id.locationInput))
+                    .setText("Montreal");
+            activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE);
+        });
     }
 
     private static void injectFakeRepo(ActivityScenario<AdminActivity> scenario,

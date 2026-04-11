@@ -2,8 +2,6 @@ package com.example.bookingapp;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.action.ViewActions.closeSoftKeyboard;
-import static androidx.test.espresso.action.ViewActions.replaceText;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -59,14 +57,21 @@ public class AdminUncancelEventE2ETest {
         return intent;
     }
 
-    /** Makes the un-cancel button visible and fills the event ID field. */
+    /**
+     * Makes the un-cancel button visible and fills the event ID field.
+     *
+     * Uses {@code scenario.onActivity()} because the form container and
+     * {@code eventIdInput} are all {@code visibility="gone"} by default.
+     */
     private static void showUncancelButton(ActivityScenario<AdminActivity> scenario,
                                            String eventId) {
-        onView(withId(R.id.eventIdInput))
-                .perform(replaceText(eventId), closeSoftKeyboard());
-        onView(withId(R.id.titleInput))
-                .perform(replaceText("Jazz Night"), closeSoftKeyboard());
         scenario.onActivity(activity -> {
+            activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
+            activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
+            ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
+                    .setText(eventId);
+            ((android.widget.EditText) activity.findViewById(R.id.titleInput))
+                    .setText("Jazz Night");
             activity.findViewById(R.id.cancelEventButton).setVisibility(View.GONE);
             activity.findViewById(R.id.uncancelEventButton).setVisibility(View.VISIBLE);
         });
@@ -146,12 +151,15 @@ public class AdminUncancelEventE2ETest {
             });
 
             // Put activity in edit mode with cancel button showing
-            onView(withId(R.id.eventIdInput))
-                    .perform(replaceText("evt-toggle-1"), closeSoftKeyboard());
-            onView(withId(R.id.titleInput))
-                    .perform(replaceText("Jazz Night"), closeSoftKeyboard());
-            scenario.onActivity(activity ->
-                    activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE));
+            scenario.onActivity(activity -> {
+                activity.findViewById(R.id.formScrollView).setVisibility(View.VISIBLE);
+                activity.findViewById(R.id.formContainer).setVisibility(View.VISIBLE);
+                ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
+                        .setText("evt-toggle-1");
+                ((android.widget.EditText) activity.findViewById(R.id.titleInput))
+                        .setText("Jazz Night");
+                activity.findViewById(R.id.cancelEventButton).setVisibility(View.VISIBLE);
+            });
 
             // Cancel the event
             onView(withId(R.id.cancelEventButton)).perform(click());
