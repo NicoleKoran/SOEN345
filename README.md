@@ -1,117 +1,119 @@
-# SOEN345
+# BookingApp
 
-## Admin Login
+A mobile event booking application built for Android. Users can browse events, make and manage reservations, and receive email notifications. Administrators can create, update, cancel, and delete events, as well as view all reservations per event.
 
-To log in as an admin, use the following credentials on the login screen:
+The app is backed by **Firebase** (Firestore + Authentication) and sends transactional emails via **EmailJS**.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Android Studio | Hedgehog (2023.1.1) or newer |
+| JDK | 17 |
+| Android SDK | API 29 minimum, API 34 target |
+| Gradle | Wrapper included (no separate install needed) |
+
+### Running the App
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/NicoleKoran/SOEN345.git
+   cd SOEN345
+   ```
+
+2. **Open in Android Studio**
+   File → Open → select the `SOEN345` folder. Let Gradle sync finish.
+
+3. **Connect a device or start an emulator**
+   Use a physical Android device (USB debugging on) or create an AVD via the AVD Manager (API 29+).
+
+4. **Run the app**
+   Press the green **Run** button (▶) or use `Shift+F10`. Select your device and the app will install and launch.
+
+### Admin Login
+
+To access administrator features, use the following credentials on the login screen:
 
 - **Email:** `admin@test.com`
 - **Password:** `123456`
 
-Admin users can create, edit, and cancel events, view reservations per event, and cancel events with automatic email notifications sent to all affected customers.
+Admin users can create, edit, cancel, and delete events, view reservations per event, and send automatic email notifications to affected customers when an event is cancelled.
 
 ---
 
-## User Stories
+## Features
 
-### US-09 — Reserve a ticket for an event
-Customers browse events on the main screen, tap **Book**, and confirm their booking. A Firestore transaction atomically decrements the available seat count and creates a reservation. A confirmation email is sent via EmailJS.
+### Customer
+- Browse upcoming events with category badges, seat counts, and status indicators
+- Book a ticket — seat count is decremented atomically via a Firestore transaction, preventing double-booking
+- View full reservation history with status badges (Confirmed / Cancelled / Pending)
+- Cancel an active reservation — the seat is restored and a confirmation email is sent
 
-### US-10 — View my reservation history
-After logging in, customers tap **My Bookings** (top-right of the event list) to see all their past and upcoming reservations with status badges (Confirmed / Cancelled / Pending).
-
-### US-11 — Cancel a reservation
-From the **My Bookings** screen, customers can tap **Cancel Reservation** on any active reservation. The cancellation is applied atomically in Firestore (seat is restored, event is re-opened if it was sold out), and a cancellation email is sent to the customer.
-
-### US-14 — Receive notification when a booked event is cancelled
-When an admin cancels an event via the **Cancel Event & Notify Customers** button in the admin form, the app queries all confirmed reservations for that event and sends a cancellation email to each affected customer via the Observer/Notification pattern.
-
-### US-19 — Handle concurrent users without double-booking
-All bookings run inside a Firestore **transaction** that atomically reads the seat count, validates availability, decrements it, and writes the reservation. This prevents race conditions where two users simultaneously book the last available seat. The UI also disables the confirm button immediately on tap to prevent duplicate submissions.
-
-### US-20 — Remain highly available via cloud deployment
-The app backend runs entirely on **Firebase** (Firestore + Authentication), which is a multi-region, auto-scaled, managed cloud platform with built-in redundancy and no single point of failure. Firebase guarantees 99.95 % uptime SLA for Firestore, ensuring the app remains available under load.
+### Administrator
+- Create new events with title, description, location, date, category, and seat count
+- Edit and update existing events
+- Cancel an event and automatically notify all customers with confirmed reservations by email
+- Restore (un-cancel) a previously cancelled event
+- Delete an event after password re-authentication
+- View all reservations for a specific event
 
 ---
 
-## Testing & Continuous Integration
+## Testing
 
-This project uses an automated testing and CI pipeline to ensure code quality and reliability.
+### Unit Tests (JVM)
 
-### Unit Testing
-
-Unit tests use **JUnit**, **Robolectric**, and **Mockito**. They run on the **JVM** (no emulator), which is fast for activity and logic tests.
-
-**Run all debug unit tests** (from the project root):
+Unit tests use **JUnit**, **Robolectric**, and **Mockito**. They run on the JVM — no emulator required.
 
 ```bash
-./gradlew :app:testDebugUnitTest
-```
-
-Shorter equivalent used in CI:
-
-```bash
+# Run all unit tests
 ./gradlew testDebugUnitTest
+
+# Run a single test class
+./gradlew :app:testDebugUnitTest --tests "com.example.bookingapp.EventFormValidatorTest"
 ```
 
-**See results:** after a run, open the HTML report in a browser:
-
-`app/build/reports/tests/testDebugUnitTest/index.html`
-
-Run a single test class:
-
-```bash
-./gradlew :app:testDebugUnitTest --tests "com.example.bookingapp.MainActivityTest"
+HTML report after a run:
+```
+app/build/reports/tests/testDebugUnitTest/index.html
 ```
 
-### Instrumentation / System Testing
+### Instrumented Tests (Device / Emulator)
 
-Instrumentation tests run on a **device or emulator** (not the JVM). This project includes **Espresso smoke tests** for login and registration (`LoginRegistrationSmokeTest`): main fields are visible, empty-submit validation shows errors, and register links open the expected screens. They do **not** sign in or create real accounts.
-
-**Run instrumentation tests** (emulator running or device connected with USB debugging):
+End-to-end and UI tests use **Espresso** and `ActivityScenario`. A connected device or running emulator is required.
 
 ```bash
 ./gradlew connectedDebugAndroidTest
 ```
 
-**Test report:** after a run, Gradle prints where reports were written; they are usually under `app/build/reports/` or `app/build/outputs/androidTest-results/` (exact layout depends on the Android Gradle Plugin version). Android Studio also shows results in the **Run** tool window.
-
-The **Android Instrumentation** GitHub Actions workflow runs these tests on an emulator.
-
-### Continuous Integration
-
-All tests are automatically executed through **GitHub Actions** on every push to `main` and on all pull requests. The CI pipeline performs the following steps:
-
-1. Build the Android project
-2. Execute JUnit unit tests
-3. Run instrumentation tests on an Android emulator
-4. Generate test coverage reports
+Reports are written to:
+```
+app/build/reports/androidTests/connected/
+```
 
 ### Code Coverage (JaCoCo)
 
-Coverage for **unit tests** is collected with **JaCoCo** when you run `testDebugUnitTest` (debug build has coverage enabled).
-
-**Generate the HTML and XML reports** (runs tests if needed, then writes reports):
-
 ```bash
-./gradlew jacocoTestReport
-```
-
-**View the report:** open this file in your browser (Finder: right‑click → Open With → browser):
-
-`app/build/reports/jacoco/jacocoTestReport/html/index.html`
-
-Browse by package, then open a class to see green/red line coverage. The machine-readable report for CI tools is:
-
-`app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml`
-
-**One-shot:** tests + coverage report:
-
-```bash
+# Run tests and generate coverage report in one step
 ./gradlew testDebugUnitTest jacocoTestReport
 ```
 
-On **CI**, results are also uploaded to **Codecov** (requires a repository secret). Locally, the HTML report above is the usual way to inspect coverage.
+HTML coverage report:
+```
+app/build/reports/jacoco/jacocoTestReport/html/index.html
+```
 
 ---
 
-This automated workflow helps maintain code quality by ensuring that new changes are tested and validated before being merged.
+## Continuous Integration
+
+GitHub Actions runs automatically on every push and pull request:
+
+1. Build the project
+2. Run JUnit unit tests
+3. Run instrumented tests on an Android emulator
+4. Generate and upload JaCoCo coverage reports to Codecov
