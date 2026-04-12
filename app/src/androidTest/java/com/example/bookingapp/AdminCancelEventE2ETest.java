@@ -123,6 +123,7 @@ public class AdminCancelEventE2ETest {
 
             // Dialog positive button must show the updated label (AlertDialog is in a separate window)
             onView(withText("Yes, Cancel Event")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 

@@ -84,6 +84,7 @@ public class AdminUncancelEventE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.uncancelEventButton).performClick());
             onView(withText("Yes, Restore")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -98,6 +99,7 @@ public class AdminUncancelEventE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.uncancelEventButton).performClick());
             onView(withText(containsString("Jazz Night"))).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 

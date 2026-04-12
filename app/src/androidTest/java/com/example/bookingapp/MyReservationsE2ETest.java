@@ -189,6 +189,7 @@ public class MyReservationsE2ETest {
 
             // Dialog must appear
             onView(withText(containsString("cancel"))).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -313,12 +314,14 @@ public class MyReservationsE2ETest {
         Intent intent = new Intent(
                 ApplicationProvider.getApplicationContext(), MainActivity.class);
 
-        Intents.init();
         try (ActivityScenario<MainActivity> ignored = ActivityScenario.launch(intent)) {
-            onView(withId(R.id.myReservationsBtn)).perform(click());
-            intended(hasComponent(MyReservationsActivity.class.getName()));
-        } finally {
-            Intents.release();
+            Intents.init();
+            try {
+                onView(withId(R.id.myReservationsBtn)).perform(click());
+                intended(hasComponent(MyReservationsActivity.class.getName()));
+            } finally {
+                Intents.release();
+            }
         }
     }
 }
