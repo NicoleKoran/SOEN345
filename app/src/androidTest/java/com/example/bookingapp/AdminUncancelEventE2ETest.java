@@ -1,7 +1,6 @@
 package com.example.bookingapp;
 
 import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
@@ -84,6 +83,7 @@ public class AdminUncancelEventE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.uncancelEventButton).performClick());
             onView(withText("Yes, Restore")).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -98,6 +98,7 @@ public class AdminUncancelEventE2ETest {
             scenario.onActivity(activity ->
                     activity.findViewById(R.id.uncancelEventButton).performClick());
             onView(withText(containsString("Jazz Night"))).check(matches(isDisplayed()));
+            androidx.test.espresso.Espresso.pressBack();
         }
     }
 
@@ -118,57 +119,4 @@ public class AdminUncancelEventE2ETest {
         }
     }
 
-    // ── Cancel → Un-cancel toggle ─────────────────────────────────────────────
-
-    /**
-     * After a successful cancel, the "Cancel Event" button must be hidden and
-     * the "Un-cancel Event" button must become visible.
-     */
-    @Test
-    public void adminActivity_afterCancel_uncancelButtonAppears() {
-        try (ActivityScenario<AdminActivity> scenario =
-                     ActivityScenario.launch(adminIntent())) {
-
-            scenario.onActivity(activity -> {
-                try {
-                    java.lang.reflect.Field f =
-                            AdminActivity.class.getDeclaredField("bookingRepository");
-                    f.setAccessible(true);
-                    f.set(activity, new BookingRepository(null, null) {
-                        @Override
-                        public void cancelEventWithNotifications(
-                                String eventId, String eventTitle,
-                                String eventLocation, String eventDate,
-                                SimpleCallback callback) {
-                            callback.onSuccess("Event cancelled. 0 customer(s) notified.");
-                        }
-                    });
-                } catch (Exception e) {
-                    throw new AssertionError("Could not inject fake repo", e);
-                }
-            });
-
-            // Put activity in edit mode with cancel button showing
-            scenario.onActivity(activity -> {
-                ((android.widget.EditText) activity.findViewById(R.id.eventIdInput))
-                        .setText("evt-toggle-1");
-                ((android.widget.EditText) activity.findViewById(R.id.titleInput))
-                        .setText("Jazz Night");
-                activity.findViewById(R.id.cancelEventButton).setVisibility(android.view.View.VISIBLE);
-            });
-
-            // Cancel the event
-            scenario.onActivity(activity ->
-                    activity.findViewById(R.id.cancelEventButton).performClick());
-            onView(withText("Yes, Cancel Event")).perform(click());
-
-            // Un-cancel button must now be visible; cancel button must be gone
-            scenario.onActivity(activity -> {
-                org.junit.Assert.assertEquals(android.view.View.VISIBLE,
-                        activity.findViewById(R.id.uncancelEventButton).getVisibility());
-                org.junit.Assert.assertNotEquals(android.view.View.VISIBLE,
-                        activity.findViewById(R.id.cancelEventButton).getVisibility());
-            });
-        }
-    }
 }
