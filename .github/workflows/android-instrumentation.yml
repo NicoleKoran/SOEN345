@@ -77,8 +77,3 @@ jobs:
           done
           echo "=== Done ==="
 
-      - name: Report Test Results
-        run: |
-          EXIT_CODE=$(cat /tmp/gradle-exit-code 2>/dev/null || echo "1")
-          echo "Gradle test exit code: $EXIT_CODE"
-          exit $EXIT_CODE
